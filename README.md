@@ -1,2 +1,2 @@
 # SemanticArtworkClustering
-My thesis project on deep semantic clustering of artworks.
+My thesis project on deep semantic clustering of artworks from the "ArtGraph" dataset.
