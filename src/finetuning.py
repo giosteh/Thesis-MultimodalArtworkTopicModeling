@@ -37,7 +37,7 @@ class ImageCaptionDataset(Dataset):
         self._image_caption_pairs = [(line.split("\t")[0], line.split("\t")[1].strip()) for line in lines]
     
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Returns the number of image-caption pairs in the dataset.
 
@@ -46,7 +46,7 @@ class ImageCaptionDataset(Dataset):
         """
         return len(self._image_caption_pairs)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Tuple[torch.Tensor, str]:
         """
         Returns the image and text at a given index.
 
@@ -54,7 +54,7 @@ class ImageCaptionDataset(Dataset):
             idx (int): The index of the image and text to be returned.
 
         Returns:
-            tuple: A tuple containing the image and text.
+            Tuple[torch.Tensor, str]: A tuple containing the image and text at the given index.
         """
         image_path, text = self._image_caption_pairs[idx]        
         image_path = os.path.join(self._images_dir, image_path)
@@ -91,6 +91,9 @@ class CLIPFinetuner:
         self._train_loader, self._val_loader = self._get_data_loaders(val_split, batch_size)
         self._optimizer = optim.Adam(self._model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-6, weight_decay=.2)
 
+        self._resume_epoch = 0
+        self._models_dir = "models"
+
 
     def get_model(self) -> torch.nn.Module:
         """
@@ -100,7 +103,41 @@ class CLIPFinetuner:
             torch.nn.Module: The model.
         """
         return self._model
+    
+    def load_model(self, path: str) -> None:
+        """
+        Loads the model from a checkpoint.
 
+        Args:
+            path (str): The path to the checkpoint.
+
+        Returns:
+            None
+        """
+        checkpoint = torch.load(path)
+        self._model.load_state_dict(checkpoint["model_state_dict"])
+        self._resume_epoch = checkpoint["epoch"]
+
+    def _save_model(self, epoch: int) -> None:
+        """
+        Save the model checkpoint.
+
+        Args:
+            epoch (int): The current epoch.
+
+        Returns:
+            None
+        """
+        last_checkpoint_path = os.path.join(self._models_dir, f"resume-{epoch}.pt")
+        if os.path.exists(last_checkpoint_path):
+            os.remove(last_checkpoint_path)
+        checkpoint_path = os.path.join(self._models_dir, f"resume-{epoch+1}.pt")
+        
+        torch.save({
+            "model_state_dict": self._model.state_dict(),
+            "epoch": epoch+1
+        }, checkpoint_path)
+    
     def fit(self, epochs: int = 100, verbose: bool = True) -> None:
         """
         Trains the model for the given number of epochs.
@@ -112,10 +149,13 @@ class CLIPFinetuner:
         Returns:
             None
         """
-        for epoch in range(epochs):
-            self._partial_unfreeze(epoch)
+        tot_epochs = epochs + self._resume_epoch
+        for epoch in range(self._resume_epoch, tot_epochs):
+            self._unfreeze_model(epoch)
             train_loss = self._train()
             val_loss, val_score = self._validate()
+
+            self._save_model(epoch)
 
             if verbose:
                 print(f"\nEpoch #{epoch+1}/{epochs} [")
@@ -181,7 +221,7 @@ class CLIPFinetuner:
             for p in self._model.transformer.resblocks[i].parameters():
                 p.requires_grad_()
 
-    def _partial_unfreeze(self, epoch: int) -> None:
+    def _unfreeze_model(self, epoch: int) -> None:
         """
         Partially unfreeze the model, given the epoch.
 
