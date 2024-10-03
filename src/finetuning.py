@@ -362,6 +362,7 @@ class EarlyStopping:
         self._train_loss.append(train_loss)
         self._val_loss.append(val_loss)
         self._val_scores.append(val_score)
+        self._save_lists()
 
         score = val_score
 
