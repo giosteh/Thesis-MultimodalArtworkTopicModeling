@@ -128,10 +128,10 @@ class CLIPFinetuner:
         Returns:
             None
         """
-        last_checkpoint_path = os.path.join(self._models_dir, f"resume-{epoch}.pt")
+        last_checkpoint_path = os.path.join(self._models_dir, f"checkpoint-e{epoch}.pt")
         if os.path.exists(last_checkpoint_path):
             os.remove(last_checkpoint_path)
-        checkpoint_path = os.path.join(self._models_dir, f"resume-{epoch+1}.pt")
+        checkpoint_path = os.path.join(self._models_dir, f"checkpoint-e{epoch+1}.pt")
         
         torch.save({
             "model_state_dict": self._model.state_dict(),
@@ -158,14 +158,14 @@ class CLIPFinetuner:
             self._save_model(epoch)
 
             if verbose:
-                print(f"\nEpoch #{epoch+1}/{epochs} [")
+                print(f"\nEpoch #{epoch+1}/{tot_epochs} [")
                 print(f"Train Loss: {train_loss:.4f}")
                 print(f"Val Loss: {val_loss:.4f}, Val Score: {val_score:.4f}\n]")
             
             stop = self._early_stopping(train_loss, val_loss, val_score)
             if stop:
                 if verbose:
-                    print(f"Early stopping at epoch #{epoch+1}")
+                    print(f"Early stopping at epoch {epoch+1}!")
                 break
 
     def _get_data_loaders(self, val_split: float = .3, batch_size: int = 128) -> Tuple[DataLoader]:
@@ -241,7 +241,7 @@ class CLIPFinetuner:
 
             if blocks_to_unfreeze <= self._tot_blocks:
                 self._unfreeze_blocks(blocks_to_unfreeze)
-                print(f"Unfreezing blocks: {blocks_to_unfreeze}/{self._tot_blocks}.\n")
+                print(f"\n+ Unfreezed {blocks_to_unfreeze}/{self._tot_blocks} blocks.")
 
     def _clip_score(self, images: torch.Tensor, texts: torch.Tensor) -> float:
         """
@@ -264,12 +264,12 @@ class CLIPFinetuner:
 
         return score
 
-    def _train(self) -> Tuple[float]:
+    def _train(self) -> float:
         """
         Train the model on the training set for one epoch.
 
         Returns:
-            Tuple[float]: The average training loss and score.
+            float: The average training loss.
         """
         self._model.train()
 
