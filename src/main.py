@@ -8,7 +8,7 @@ if __name__ == "__main__":
     parser.add_argument("-ep", "--epochs", type=int, default=50)
     parser.add_argument("-bs", "--batch_size", type=int, default=64)
     parser.add_argument("-lr", "--learning_rate", type=float, default=5e-5)
-    parser.add_argument("--load", type=str, default=None)
+    parser.add_argument("-l", "--load", type=str, default=None)
 
     args = parser.parse_args()
 
