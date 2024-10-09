@@ -4,6 +4,7 @@ from finetuning import CLIPFinetuner
 
 
 if __name__ == "__main__":
+    # command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("-ep", "--epochs", type=int, default=50)
     parser.add_argument("-bs", "--batch_size", type=int, default=64)
