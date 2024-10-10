@@ -24,10 +24,11 @@ class ImageCaptionDataset(Dataset):
         """
         Initializes the ImageTextDataset.
         """
-        self.mode = "train"
+        self.mode = "no-augment"
         self._images_dir = os.path.join("data", images_dir)
         self._captions_file = os.path.join("data", captions_file)
 
+        _, self._clip_preprocess = clip.load("ViT-B/32", device=device, jit=False)
         self._image_augmenter = ImageAugmenter()
         self._text_augmenter = TextAugmenter()
 
@@ -60,10 +61,12 @@ class ImageCaptionDataset(Dataset):
         image_path = os.path.join(self._images_dir, image_path)
         image = Image.open(image_path).convert("RGB")
 
-        if self.mode == "train":
+        if self.mode == "augment":
             image = self._image_augmenter(image)
             text = self._text_augmenter(text)
-
+        else:
+            image = self._clip_preprocess(image)
+        
         return image, text
 
 
@@ -71,7 +74,7 @@ class ImageCaptionDataset(Dataset):
 class CLIPFinetuner:
 
     def __init__(self, model_name: str = "ViT-B/32", dataset: Dataset = ImageCaptionDataset(), val_split: float = .3,
-                 batch_size: int = 128, lr: float = 5e-5, unfreeze_from: int = 6, unfreeze_every: int = 2):
+                 batch_size: int = 128, lr: float = 5e-5, augment=False, unfreeze_from: int = 6, unfreeze_every: int = 2):
         """
         Initializes the CLIPFinetuner.
         """
@@ -88,7 +91,7 @@ class CLIPFinetuner:
 
         self._early_stopping = EarlyStopping(self._model)
 
-        self._train_loader, self._val_loader = self._get_data_loaders(val_split, batch_size)
+        self._train_loader, self._val_loader = self._get_data_loaders(val_split, batch_size, augment)
         self._optimizer = optim.Adam(self._model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-6, weight_decay=.2)
 
         self._resume_epoch = 0
@@ -158,9 +161,9 @@ class CLIPFinetuner:
             self._save_model(epoch)
 
             if verbose:
-                print(f"\nEpoch #{epoch+1}/{tot_epochs} [")
+                print(f"\nEpoch #{epoch+1}/{tot_epochs} (")
                 print(f"Train Loss: {train_loss:.4f}")
-                print(f"Val Loss: {val_loss:.4f}, Val Score: {val_score:.4f}\n]")
+                print(f"Val Loss: {val_loss:.4f}, Val CLIP Score: {val_score:.4f}\n)")
             
             stop = self._early_stopping(train_loss, val_loss, val_score)
             if stop:
@@ -168,13 +171,14 @@ class CLIPFinetuner:
                     print(f"Early stopping at epoch {epoch+1}!")
                 break
 
-    def _get_data_loaders(self, val_split: float = .3, batch_size: int = 128) -> Tuple[DataLoader]:
+    def _get_data_loaders(self, val_split: float = .3, batch_size: int = 128, augment: bool = False) -> Tuple[DataLoader]:
         """
         Returns the train and validation DataLoaders.
 
         Args:
             val_split (float, optional): The proportion of the dataset to include in the validation set. Defaults to .3.
             batch_size (int, optional): The batch size for the DataLoaders. Defaults to 128.
+            augment (bool, optional): Whether to apply data augmentation. Defaults to False.
 
         Returns:
             Tuple[DataLoader]: A tuple containing the train and validation DataLoaders.
@@ -183,8 +187,8 @@ class CLIPFinetuner:
         val_size = len(self._dataset) - train_size
         train_dataset, val_dataset = random_split(self._dataset, [train_size, val_size])
 
-        train_dataset.mode = "train"
-        val_dataset.mode = "val"
+        train_dataset.mode = "augment" if augment else "no-augment"
+        val_dataset.mode = "no-augment"
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
