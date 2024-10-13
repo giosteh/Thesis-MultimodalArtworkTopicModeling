@@ -81,6 +81,7 @@ class CLIPFinetuner:
         self._model, _ = clip.load(model_name, device=device, jit=False)
         self._model.float()
         self._tot_blocks = len(self._model.visual.transformer.resblocks)
+        self._unfreezing_completed = False
         self._freeze_model()
         self._unfreeze_blocks(1)
 
@@ -211,11 +212,13 @@ class CLIPFinetuner:
         Returns:
             None
         """
+        if blocks_to_unfreeze == self._tot_blocks:
+            for p in self._model.parameters():
+                p.requires_grad_()
+            self._unfreezing_completed = True
+            return
         self._model.visual.proj.requires_grad_()
         self._model.text_projection.requires_grad_()
-
-        if blocks_to_unfreeze > self._tot_blocks:
-            blocks_to_unfreeze = self._tot_blocks
 
         for i in range(self._tot_blocks - blocks_to_unfreeze, self._tot_blocks):
             for p in self._model.visual.transformer.resblocks[i].parameters():
@@ -237,6 +240,8 @@ class CLIPFinetuner:
         Returns:
             None
         """
+        if self._unfreezing_completed:
+            return
         epoch += 1
 
         if epoch >= self._unfreeze_from and epoch % self._unfreeze_every == 0:
@@ -245,7 +250,7 @@ class CLIPFinetuner:
 
             if blocks_to_unfreeze <= self._tot_blocks:
                 self._unfreeze_blocks(blocks_to_unfreeze)
-                print(f"\n+ Unfreezed {blocks_to_unfreeze}/{self._tot_blocks} blocks.")
+                print(f"\n<Unfreezed blocks {self._tot_blocks - blocks_to_unfreeze} to {self._tot_blocks}>")
 
     def _clip_score(self, images: torch.Tensor, texts: torch.Tensor) -> float:
         """
