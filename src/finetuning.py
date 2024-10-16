@@ -83,7 +83,7 @@ class CLIPFinetuner:
                  val_split: float = .3,
                  batch_size: int = 128,
                  lr: float = 5e-5,
-                 augment=False,
+                 augment: bool = False,
                  unfreeze_from: int = 6,
                  unfreeze_every: int = 2):
         """
@@ -91,13 +91,12 @@ class CLIPFinetuner:
         """
         self._model, _ = clip.load(model_name, device=device, jit=False)
         self._model.float()
+        self._dataset = dataset
+
         self._tot_blocks = len(self._model.visual.transformer.resblocks)
         self._unfreezing_completed = False
         self._freeze_model()
         self._unfreeze_blocks(1)
-
-        self._dataset = dataset
-
         self._unfreeze_from = unfreeze_from
         self._unfreeze_every = unfreeze_every
 
