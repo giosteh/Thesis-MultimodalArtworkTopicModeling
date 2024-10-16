@@ -3,6 +3,7 @@ import argparse
 from finetuning import CLIPFinetuner
 
 
+
 if __name__ == "__main__":
     # command line arguments
     parser = argparse.ArgumentParser()
@@ -14,7 +15,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # finetuning
+    # initialize the finetuner
     finetuner = CLIPFinetuner(
         model_name="ViT-B/32",
         batch_size=args.batch_size,
@@ -25,4 +26,5 @@ if __name__ == "__main__":
     if args.load:
         finetuner.load_model(args.load)
 
-    finetuner.fit(epochs=args.epochs)    
+    # train the model
+    finetuner.fit(epochs=args.epochs, verbose=True)

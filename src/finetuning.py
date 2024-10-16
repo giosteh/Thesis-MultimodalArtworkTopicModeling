@@ -6,12 +6,14 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
 
+torch.manual_seed(42)
+
 from typing import Tuple
 from PIL import Image
 import pickle
 import os
 
-from preprocessing import ImageAugmenter, TextAugmenter
+from processing import ImageAugmenter, TextAugmenter
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -20,7 +22,9 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class ImageCaptionDataset(Dataset):
 
-    def __init__(self, images_dir: str = "images/imagesf2", captions_file: str = "artwork_captions.txt"):
+    def __init__(self,
+                 images_dir: str = "images/imagesf2",
+                 captions_file: str = "artwork_captions.txt"):
         """
         Initializes the ImageTextDataset.
         """
@@ -73,8 +77,15 @@ class ImageCaptionDataset(Dataset):
 
 class CLIPFinetuner:
 
-    def __init__(self, model_name: str = "ViT-B/32", dataset: Dataset = ImageCaptionDataset(), val_split: float = .3,
-                 batch_size: int = 128, lr: float = 5e-5, augment=False, unfreeze_from: int = 6, unfreeze_every: int = 2):
+    def __init__(self,
+                 model_name: str = "ViT-B/32",
+                 dataset: Dataset = ImageCaptionDataset(),
+                 val_split: float = .3,
+                 batch_size: int = 128,
+                 lr: float = 5e-5,
+                 augment=False,
+                 unfreeze_from: int = 6,
+                 unfreeze_every: int = 2):
         """
         Initializes the CLIPFinetuner.
         """
@@ -340,7 +351,11 @@ class CLIPFinetuner:
 
 class EarlyStopping:
 
-    def __init__(self, model: nn.Module, patience: int = 50, dir_path: str = "models", mode: str = "max"):
+    def __init__(self,
+                 model: nn.Module,
+                 patience: int = 50,
+                 dir_path: str = "models",
+                 mode: str = "max"):
         """
         Initialize the early stopping object.
         """
