@@ -135,12 +135,12 @@ class CLIPFinetuner:
         self._models_dir = "models"
 
 
-    def get_model(self) -> torch.nn.Module:
+    def get_model(self) -> nn.Module:
         """
         Returns the model.
 
         Returns:
-            torch.nn.Module: The model.
+            nn.Module: The model.
         """
         return self._model
     
@@ -221,9 +221,9 @@ class CLIPFinetuner:
             self._save_model(epoch)
 
             if verbose:
-                print(f"\nEpoch #{epoch+1}/{tot_epochs} (")
+                print(f"\nEpoch #{epoch+1}/{tot_epochs} |")
                 print(f"Train Loss: {train_loss:.4f}")
-                print(f"Val Loss: {val_loss:.4f}, Val CLIP Score: {val_score:.4f}\n)")
+                print(f"Val Loss: {val_loss:.4f}, Val CLIP Score: {val_score:.4f} |")
             
             stop = self._early_stopping(train_loss, val_loss, val_score)
             if stop:
