@@ -4,11 +4,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, Subset, random_split
 
 torch.manual_seed(42)
 
-from typing import Tuple
+from typing import Tuple, List
 from PIL import Image
 import pickle
 import os
@@ -24,11 +24,10 @@ class ImageCaptionDataset(Dataset):
 
     def __init__(self,
                  images_dir: str = "images/imagesf2",
-                 captions_file: str = "artwork_captions.txt"):
+                 captions_file: str = "artwork_captions.txt") -> None:
         """
         Initializes the ImageTextDataset.
         """
-        self.mode = "no-augment"
         self._images_dir = os.path.join("data", images_dir)
         self._captions_file = os.path.join("data", captions_file)
 
@@ -51,7 +50,7 @@ class ImageCaptionDataset(Dataset):
         """
         return len(self._image_caption_pairs)
 
-    def __getitem__(self, idx) -> Tuple[torch.Tensor, str]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, str]:
         """
         Returns the image and text at a given index.
 
@@ -65,14 +64,41 @@ class ImageCaptionDataset(Dataset):
         image_path = os.path.join(self._images_dir, image_path)
         image = Image.open(image_path).convert("RGB")
 
-        if self.mode == "augment":
-            image = self._image_augmenter(image)
-            text = self._text_augmenter(text)
-        else:
-            image = self._clip_preprocess(image)
-        
         return image, text
 
+
+class AugmentableSubset(Subset):
+
+    def __init__(self,
+                 dataset: ImageCaptionDataset,
+                 indices: List[int],
+                 mode: str = "default") -> None:
+        """
+        Initializes the AugmentableSubset.
+        """
+        super().__init__(dataset, indices)
+        self._mode = mode
+    
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, str]:
+        """
+        Returns the image and text at a given index, applying data augmentation if specified.
+
+        Args:
+            idx (int): The index of the image and text to be returned.
+
+        Returns:
+            Tuple[torch.Tensor, str]: A tuple containing the image and text at the given index.
+        """
+        image, text = self.dataset[self.indices[idx]]
+
+        if self._mode == "augment":
+            image = self.dataset._image_augmenter(image)
+            text = self.dataset._text_augmenter(text)
+        else:
+            image = self.dataset._clip_preprocess(image)
+
+        return image, text
 
 
 class CLIPFinetuner:
@@ -85,7 +111,7 @@ class CLIPFinetuner:
                  lr: float = 5e-5,
                  augment: bool = False,
                  unfreeze_from: int = 6,
-                 unfreeze_every: int = 2):
+                 unfreeze_every: int = 2) -> None:
         """
         Initializes the CLIPFinetuner.
         """
@@ -152,6 +178,29 @@ class CLIPFinetuner:
             "epoch": epoch+1
         }, checkpoint_path)
     
+    def _get_data_loaders(self, val_split: float = .3, batch_size: int = 128, augment: bool = False) -> Tuple[DataLoader]:
+        """
+        Returns the train and validation DataLoaders.
+
+        Args:
+            val_split (float, optional): The proportion of the dataset to include in the validation set. Defaults to .3.
+            batch_size (int, optional): The batch size for the DataLoaders. Defaults to 128.
+            augment (bool, optional): Whether to apply data augmentation. Defaults to False.
+
+        Returns:
+            Tuple[DataLoader]: A tuple containing the train and validation DataLoaders.
+        """
+        train_size = int((1 - val_split) * len(self._dataset))
+        val_size = len(self._dataset) - train_size
+        train_indices, val_indices = random_split(range(len(self._dataset)), [train_size, val_size])
+
+        train_dataset = AugmentableSubset(self._dataset, train_indices, mode="augment" if augment else "default")
+        val_dataset = AugmentableSubset(self._dataset, val_indices, mode="default")
+
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        return train_loader, val_loader
+    
     def fit(self, epochs: int = 100, verbose: bool = True) -> None:
         """
         Trains the model for the given number of epochs.
@@ -179,32 +228,9 @@ class CLIPFinetuner:
             stop = self._early_stopping(train_loss, val_loss, val_score)
             if stop:
                 if verbose:
-                    print(f"Early stopping at epoch {epoch+1}!")
+                    print(f"Early stopping at epoch #{epoch+1}!")
                 break
-
-    def _get_data_loaders(self, val_split: float = .3, batch_size: int = 128, augment: bool = False) -> Tuple[DataLoader]:
-        """
-        Returns the train and validation DataLoaders.
-
-        Args:
-            val_split (float, optional): The proportion of the dataset to include in the validation set. Defaults to .3.
-            batch_size (int, optional): The batch size for the DataLoaders. Defaults to 128.
-            augment (bool, optional): Whether to apply data augmentation. Defaults to False.
-
-        Returns:
-            Tuple[DataLoader]: A tuple containing the train and validation DataLoaders.
-        """
-        train_size = int((1 - val_split) * len(self._dataset))
-        val_size = len(self._dataset) - train_size
-        train_dataset, val_dataset = random_split(self._dataset, [train_size, val_size])
-
-        train_dataset.mode = "augment" if augment else "no-augment"
-        val_dataset.mode = "no-augment"
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
-        return train_loader, val_loader
-
+    
     def _freeze_model(self) -> None:
         """
         Freeze all the model's parameters.

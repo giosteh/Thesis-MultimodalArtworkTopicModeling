@@ -22,7 +22,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class PromptBuilder:
 
-    def __init__(self, captions_file: str = "artwork_captions.txt"):
+    def __init__(self, captions_file: str = "artwork_captions.txt") -> None:
         """
         Initializes the prompt builder.
         """
@@ -173,7 +173,7 @@ class PromptBuilder:
 
 class ImageAugmenter:
     
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initializes the image augmenter.
         """
@@ -247,7 +247,7 @@ class ImageAugmenter:
 
 class TextAugmenter:
     
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initializes the text augmenter.
         """
