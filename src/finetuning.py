@@ -4,9 +4,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset, Subset, random_split
+from torch.utils.data import DataLoader, Dataset, random_split
 
+# Seed for reproducibility
 torch.manual_seed(42)
+torch.cuda.manual_seed(42)
 
 from typing import Tuple, List
 from PIL import Image
@@ -24,10 +26,12 @@ class ImageCaptionDataset(Dataset):
 
     def __init__(self,
                  images_dir: str = "images/imagesf2",
-                 captions_file: str = "artwork_captions.txt") -> None:
+                 captions_file: str = "artwork_captions.txt",
+                 apply_augmentations: bool = False) -> None:
         """
         Initializes the ImageTextDataset.
         """
+        self.apply_augmentations = apply_augmentations
         self._images_dir = os.path.join("data", images_dir)
         self._captions_file = os.path.join("data", captions_file)
 
@@ -37,7 +41,6 @@ class ImageCaptionDataset(Dataset):
 
         with open(self._captions_file, "r") as f:
             lines = f.readlines()
-        
         self._image_caption_pairs = [(line.split("\t")[0], line.split("\t")[1].strip()) for line in lines]
     
 
@@ -64,39 +67,11 @@ class ImageCaptionDataset(Dataset):
         image_path = os.path.join(self._images_dir, image_path)
         image = Image.open(image_path).convert("RGB")
 
-        return image, text
-
-
-class AugmentableSubset(Subset):
-
-    def __init__(self,
-                 dataset: ImageCaptionDataset,
-                 indices: List[int],
-                 mode: str = "default") -> None:
-        """
-        Initializes the AugmentableSubset.
-        """
-        super().__init__(dataset, indices)
-        self._mode = mode
-    
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, str]:
-        """
-        Returns the image and text at a given index, applying data augmentation if specified.
-
-        Args:
-            idx (int): The index of the image and text to be returned.
-
-        Returns:
-            Tuple[torch.Tensor, str]: A tuple containing the image and text at the given index.
-        """
-        image, text = self.dataset[self.indices[idx]]
-
-        if self._mode == "augment":
-            image = self.dataset._image_augmenter(image)
-            text = self.dataset._text_augmenter(text)
+        if self.apply_augmentations:
+            image = self._image_augmenter(image)
+            text = self._text_augmenter(text)
         else:
-            image = self.dataset._clip_preprocess(image)
+            image = self._clip_preprocess(image)
 
         return image, text
 
@@ -128,22 +103,13 @@ class CLIPFinetuner:
 
         self._early_stopping = EarlyStopping(self._model)
 
-        self._train_loader, self._val_loader = self._get_data_loaders(val_split, batch_size, augment)
+        self._train_loader, self._val_loader = self._get_dataloaders(val_split, batch_size, augment)
         self._optimizer = optim.Adam(self._model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-6, weight_decay=.2)
 
         self._resume_epoch = 0
         self._models_dir = "models"
 
 
-    def get_model(self) -> nn.Module:
-        """
-        Returns the model.
-
-        Returns:
-            nn.Module: The model.
-        """
-        return self._model
-    
     def load_model(self, path: str) -> None:
         """
         Loads the model from a checkpoint.
@@ -178,27 +144,27 @@ class CLIPFinetuner:
             "epoch": epoch+1
         }, checkpoint_path)
     
-    def _get_data_loaders(self, val_split: float = .3, batch_size: int = 128, augment: bool = False) -> Tuple[DataLoader]:
+    def _get_dataloaders(self, val_split: float = .3, batch_size: int = 128, apply_augmentations: bool = False) -> Tuple[DataLoader, DataLoader]:
         """
         Returns the train and validation DataLoaders.
 
         Args:
             val_split (float, optional): The proportion of the dataset to include in the validation set. Defaults to .3.
             batch_size (int, optional): The batch size for the DataLoaders. Defaults to 128.
-            augment (bool, optional): Whether to apply data augmentation. Defaults to False.
+            apply_augmentations (bool, optional): Whether to apply data augmentation. Defaults to False.
 
         Returns:
-            Tuple[DataLoader]: A tuple containing the train and validation DataLoaders.
+            Tuple[DataLoader, DataLoader]: A tuple containing the train and validation DataLoaders.
         """
         train_size = int((1 - val_split) * len(self._dataset))
         val_size = len(self._dataset) - train_size
-        train_indices, val_indices = random_split(range(len(self._dataset)), [train_size, val_size])
+        train_dataset, val_dataset = random_split(self._dataset, [train_size, val_size])
 
-        train_dataset = AugmentableSubset(self._dataset, train_indices, mode="augment" if augment else "default")
-        val_dataset = AugmentableSubset(self._dataset, val_indices, mode="default")
+        train_dataset.dataset.apply_augmentations = apply_augmentations
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
         return train_loader, val_loader
     
     def fit(self, epochs: int = 100, verbose: bool = True) -> None:
@@ -286,7 +252,10 @@ class CLIPFinetuner:
 
             if blocks_to_unfreeze <= self._tot_blocks:
                 self._unfreeze_blocks(blocks_to_unfreeze)
-                print(f"\n<Unfreezed blocks {self._tot_blocks - blocks_to_unfreeze} to {self._tot_blocks}>")
+                if self._unfreezing_completed:
+                    print(f"<All {self._tot_blocks} transformer blocks have been unfrozen!>")
+                else:
+                    print(f"\n<Unfrozen blocks {self._tot_blocks - blocks_to_unfreeze} to {self._tot_blocks}.>")
 
     def _clip_score(self, images: torch.Tensor, texts: torch.Tensor) -> float:
         """
@@ -340,12 +309,12 @@ class CLIPFinetuner:
         total_loss /= len(self._train_loader)
         return total_loss
 
-    def _validate(self) -> Tuple[float]:
+    def _validate(self) -> Tuple[float, float]:
         """
         Validate the model on the validation set.
 
         Returns:
-            Tuple[float]: The average validation loss and score.
+            Tuple[float, float]: The average validation loss and score.
         """
         self._model.eval()
 
@@ -467,8 +436,8 @@ class EarlyStopping:
             None
         """
         paths = [
-            ("losses.pkl", (self._train_loss, self._val_loss)),
-            ("scores.pkl", (self._val_scores))
+            ("track_loss.pkl", (self._train_loss, self._val_loss)),
+            ("track_score.pkl", (self._val_scores))
         ]
         for name, data in paths:
             with open(os.path.join(self._dir_path, name), "wb") as f:
