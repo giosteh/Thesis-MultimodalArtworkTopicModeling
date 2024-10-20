@@ -1,3 +1,6 @@
+"""
+Classes and functions for processing data.
+"""
 
 import clip
 import torch

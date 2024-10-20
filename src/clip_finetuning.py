@@ -1,3 +1,6 @@
+"""
+Classes and functions for fine-tuning the CLIP model.
+"""
 
 import clip
 import torch
@@ -10,7 +13,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
 
-from typing import Tuple, List
+from typing import Tuple
 from PIL import Image
 import pickle
 import os
@@ -253,7 +256,7 @@ class CLIPFinetuner:
             if blocks_to_unfreeze <= self._tot_blocks:
                 self._unfreeze_blocks(blocks_to_unfreeze)
                 if self._unfreezing_completed:
-                    print(f"<All {self._tot_blocks} transformer blocks have been unfrozen!>")
+                    print(f"\n<All {self._tot_blocks} transformer blocks have been unfrozen!>")
                 else:
                     print(f"\n<Unfrozen blocks {self._tot_blocks - blocks_to_unfreeze} to {self._tot_blocks}.>")
 
@@ -383,7 +386,7 @@ class EarlyStopping:
         self._save_lists()
 
         score = val_score
-
+        
         if self._best_score is None:
             self._best_score = score
         elif self._is_improvement(score):

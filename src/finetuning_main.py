@@ -1,6 +1,6 @@
 
 import argparse
-from finetuning import CLIPFinetuner
+from clip_finetuning import CLIPFinetuner
 
 
 
