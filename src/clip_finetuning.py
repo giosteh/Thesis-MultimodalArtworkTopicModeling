@@ -30,11 +30,13 @@ class ImageCaptionDataset(Dataset):
     def __init__(self,
                  images_dir: str = "images/imagesf2",
                  captions_file: str = "artwork_captions.txt",
-                 apply_augmentations: bool = False) -> None:
+                 apply_augmentations: bool = False,
+                 raw_only: bool = False) -> None:
         """
         Initializes the ImageTextDataset.
         """
         self.apply_augmentations = apply_augmentations
+        self._raw_only = raw_only
         self._images_dir = os.path.join("data", images_dir)
         self._captions_file = os.path.join("data", captions_file)
 
@@ -66,8 +68,10 @@ class ImageCaptionDataset(Dataset):
         Returns:
             Tuple[torch.Tensor, str]: A tuple containing the image and text at the given index.
         """
-        image_path, text = self._image_caption_pairs[idx]        
+        image_path, text = self._image_caption_pairs[idx]
         image_path = os.path.join(self._images_dir, image_path)
+        if self._raw_only:
+            return image_path, text
         image = Image.open(image_path).convert("RGB")
 
         if self.apply_augmentations:
