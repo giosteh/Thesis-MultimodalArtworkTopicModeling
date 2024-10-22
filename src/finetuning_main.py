@@ -1,3 +1,7 @@
+"""
+Main file for finetuning CLIP.
+"""
+
 
 import argparse
 from clip_finetuning import CLIPFinetuner

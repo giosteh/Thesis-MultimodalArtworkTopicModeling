@@ -38,13 +38,13 @@ class ImageCaptionDataset(Dataset):
         self.apply_augmentations = apply_augmentations
         self._raw_only = raw_only
         self._images_dir = os.path.join("data", images_dir)
-        self._captions_file = os.path.join("data", captions_file)
+        captions_file = os.path.join("data", captions_file)
 
         _, self._clip_preprocess = clip.load("ViT-B/32", device=device, jit=False)
         self._image_augmenter = ImageAugmenter()
         self._text_augmenter = TextAugmenter()
 
-        with open(self._captions_file, "r") as f:
+        with open(captions_file, "r") as f:
             lines = f.readlines()
         self._image_caption_pairs = [(line.split("\t")[0], line.split("\t")[1].strip()) for line in lines]
     

@@ -6,14 +6,17 @@ import clip
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import KMeans
+import umap
 
 from clip_finetuning import ImageCaptionDataset
 
-from typing import List
+from typing import List, Tuple
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import pickle
+import os
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -97,7 +100,7 @@ class ArtworkClusterer:
                  base_model: str = "ViT-B/32",
                  finetuned_model_path: str = None,
                  dataset: pd.DataFrame = EmbeddingDatasetBuilder()(),
-                 vocabulary_file: List[str] = "data/vocabulary.pkl") -> None:
+                 voc_sig_file: str = "data/voc_sig.pkl") -> None:
         """
         Initializes the ArtworkClusterer.
         """
@@ -106,12 +109,14 @@ class ArtworkClusterer:
         self._model.eval()
         if finetuned_model_path:
             self._model = load_finetuned_model(finetuned_model_path)
+        
+        embeddings = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
+        self._embeddings = np.vstack(embeddings.values)
 
-        dataset["embedding"] = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
-        self._embeddings = np.vstack(dataset["embedding"].values)
-
-        with open(vocabulary_file, "rb") as f:
-            self._vocabulary = pickle.load(f)
+        with open(voc_sig_file, "rb") as f:
+            voc_sig = pickle.load(f)
+        self._vocabulary = [v[0] for v in voc_sig]
+        self._signifiers = [s[1] for s in voc_sig]
     
 
     def signify_clusters(self, centroids: List[torch.Tensor], n_labels: int = 10) -> List[List[(str, float)]]:
@@ -126,7 +131,7 @@ class ArtworkClusterer:
             List[List[(str, float)]]: The list of labels for each centroid.
         """
         cluster_interpretations = []
-        signifiers = torch.cat([clip.tokenize(s) for s in self._vocabulary]).to(device)
+        signifiers = torch.cat([clip.tokenize(s) for s in self._signifiers]).to(device)
 
         with torch.no_grad():
             for centroid in centroids:
@@ -142,7 +147,29 @@ class ArtworkClusterer:
 
         return cluster_interpretations
 
-    def cluster_with_kmeans(self, n_clusters: int = 10) -> List[torch.Tensor]:
+    def visualize_with_umap(self, labels: np.ndarray, n_neighbors: int = 30, min_dist: float = .1) -> None:
+        """
+        Visualizes the clusters using UMAP.
+
+        Args:
+            labels (np.ndarray): The labels.
+            n_neighbors (int): The number of neighbors to use for UMAP.
+            min_dist (float): The minimum distance to use for UMAP.
+
+        Returns:
+            None
+        """
+        reducer = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist)
+        embeddings_2d = reducer.fit_transform(self._embeddings)
+
+        plt.figure(figsize=(10, 7))
+        plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap="Spectral", s=5)
+        plt.colorbar(label="Cluster label")
+        plt.title("UMAP projection of the clustered embeddings")
+        plt.savefig("umap-proj.png", dpi=300, bbox_inches="tight")
+        plt.close()
+    
+    def cluster_with_kmeans(self, n_clusters: int = 10) -> Tuple[List[torch.Tensor], np.ndarray]:
         """
         Clusters the embeddings using k-means.
 
@@ -150,17 +177,14 @@ class ArtworkClusterer:
             n_clusters (int): The number of clusters to use.
 
         Returns:
-            List[torch.Tensor]: The cluster centers.
+            Tuple[List[torch.Tensor], np.ndarray]: The centroids and the labels.
         """
         X_torch = torch.from_numpy(self._embeddings).float()
         X_normalized = X_torch / X_torch.norm(dim=-1, keepdim=True)
         X = X_normalized.cpu().numpy()
 
-        kmeans = KMeans(n_clusters=n_clusters, init="k-means++", n_init=10, random_state=42)
-        kmeans.fit(X)
+        kmeans = KMeans(n_clusters=n_clusters, init="k-means++", max_iter=1000, n_init=10, random_state=0)
+        labels = kmeans.fit_predict(X)
         centroids = kmeans.cluster_centers_
 
-        return [torch.from_numpy(c).float() for c in centroids]
-    
-    def cluster_with_dbscan(self, eps: float = 0.5, min_samples: int = 5) -> List[torch.Tensor]:
-        pass
+        return [torch.from_numpy(c).float() for c in centroids], labels
