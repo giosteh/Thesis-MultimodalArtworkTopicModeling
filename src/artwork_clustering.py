@@ -51,6 +51,12 @@ class EmbeddingDatasetBuilder:
                  dataset: ImageCaptionDataset = ImageCaptionDataset()) -> None:
         """
         Initializes the EmbeddingDatasetBuilder.
+
+        Args:
+            base_model (str): The base model to use. Defaults to "ViT-B/32".
+            finetuned_model_path (str): The path to the finetuned model. Defaults to "models/checkpoint.pt".
+            raw_dataset (ImageCaptionDataset): The raw dataset. Defaults to ImageCaptionDataset(raw_only=True).
+            dataset (ImageCaptionDataset): The dataset. Defaults to ImageCaptionDataset().
         """
         self._base_model, _ = clip.load(base_model, device=device, jit=False)
         self._base_model.float()
@@ -103,6 +109,12 @@ class ArtworkClusterer:
                  voc_sig_file: str = "data/voc_sig.pkl") -> None:
         """
         Initializes the ArtworkClusterer.
+
+        Args:
+            base_model (str): The base model to use. Defaults to "ViT-B/32".
+            finetuned_model_path (str): The path to the finetuned model. Defaults to None.
+            dataset (pd.DataFrame): The embedding dataset which must contain an "embedding" column. Defaults to EmbeddingDatasetBuilder()().
+            voc_sig_file (str): The path to the vocabulary and signifiers file. Defaults to "data/voc_sig.pkl".
         """
         self._model, _ = clip.load(base_model, device=device, jit=False)
         self._model.float()

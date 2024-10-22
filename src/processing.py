@@ -28,6 +28,9 @@ class PromptBuilder:
     def __init__(self, captions_file: str = "artwork_captions.txt") -> None:
         """
         Initializes the prompt builder.
+
+        Args:
+            captions_file (str): The file containing the captions. Defaults to "artwork_captions.txt".
         """
         self._captions_file = os.path.join("data", captions_file)
         self._sparql_query = """

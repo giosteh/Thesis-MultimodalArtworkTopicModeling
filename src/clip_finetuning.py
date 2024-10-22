@@ -34,6 +34,12 @@ class ImageCaptionDataset(Dataset):
                  raw_only: bool = False) -> None:
         """
         Initializes the ImageTextDataset.
+
+        Args:
+            images_dir (str): The directory containing the images. Defaults to "images/imagesf2".
+            captions_file (str): The file containing the captions. Defaults to "artwork_captions.txt".
+            apply_augmentations (bool): Whether to apply augmentations. Defaults to False.
+            raw_only (bool): Whether to only return the image path and text. Defaults to False.
         """
         self.apply_augmentations = apply_augmentations
         self._raw_only = raw_only
@@ -96,6 +102,16 @@ class CLIPFinetuner:
                  unfreeze_every: int = 2) -> None:
         """
         Initializes the CLIPFinetuner.
+
+        Args:
+            model_name (str, optional): The name of the model. Defaults to "ViT-B/32".
+            dataset (Dataset, optional): The dataset to use. Defaults to ImageCaptionDataset().
+            val_split (float, optional): The proportion of the dataset to use for validation. Defaults to .3.
+            batch_size (int, optional): The batch size. Defaults to 128.
+            lr (float, optional): The learning rate. Defaults to 5e-5.
+            augment (bool, optional): Whether to apply augmentations. Defaults to False.
+            unfreeze_from (int, optional): The number of blocks to unfreeze. Defaults to 6.
+            unfreeze_every (int, optional): The number of blocks to unfreeze every time. Defaults to 2.
         """
         self._model, _ = clip.load(model_name, device=device, jit=False)
         self._model.float()
@@ -359,6 +375,12 @@ class EarlyStopping:
                  mode: str = "max"):
         """
         Initialize the early stopping object.
+
+        Args:
+            model (nn.Module): The model to be trained.
+            patience (int, optional): The number of epochs to wait for improvement. Defaults to 50.
+            dir_path (str, optional): The directory path to save the model. Defaults to "models".
+            mode (str, optional): The mode of the early stopping. Defaults to "max".
         """
         self._model = model
         self._patience = patience
