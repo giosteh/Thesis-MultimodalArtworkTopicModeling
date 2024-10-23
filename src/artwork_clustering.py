@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import pickle
-import os
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -46,17 +45,19 @@ class EmbeddingDatasetBuilder:
 
     def __init__(self,
                  base_model: str = "ViT-B/32",
-                 finetuned_model_path: str = "models/checkpoint.pt",
+                 finetuned_model_path: str = "models/finetuned.pt",
                  raw_dataset: ImageCaptionDataset = ImageCaptionDataset(raw_only=True),
-                 dataset: ImageCaptionDataset = ImageCaptionDataset()) -> None:
+                 dataset: ImageCaptionDataset = ImageCaptionDataset(),
+                 use_base_model: bool = False) -> None:
         """
         Initializes the EmbeddingDatasetBuilder.
 
         Args:
             base_model (str): The base model to use. Defaults to "ViT-B/32".
-            finetuned_model_path (str): The path to the finetuned model. Defaults to "models/checkpoint.pt".
+            finetuned_model_path (str): The path to the finetuned model. Defaults to "models/finetuned.pt".
             raw_dataset (ImageCaptionDataset): The raw dataset. Defaults to ImageCaptionDataset(raw_only=True).
             dataset (ImageCaptionDataset): The dataset. Defaults to ImageCaptionDataset().
+            use_base_model (bool): Whether to select the base embeddings. Defaults to False.
         """
         self._base_model, _ = clip.load(base_model, device=device, jit=False)
         self._base_model.float()
@@ -65,6 +66,8 @@ class EmbeddingDatasetBuilder:
 
         self._raw_loader = DataLoader(raw_dataset, batch_size=1, shuffle=False)
         self._data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+        self._use_base_model = use_base_model
     
 
     def __call__(self) -> pd.DataFrame:
@@ -96,8 +99,11 @@ class EmbeddingDatasetBuilder:
                 features["finetuned_embedding"] = np.array2string(finetuned_features, np.inf, separator=",")
 
                 rows.append(features)
-
-        return pd.DataFrame(rows)
+        
+        if self._use_base_model:
+            return pd.DataFrame(rows).rename(columns={"base_embedding": "embedding"})
+        
+        return pd.DataFrame(rows).rename(columns={"finetuned_embedding": "embedding"})
 
 
 class ArtworkClusterer:
@@ -106,15 +112,15 @@ class ArtworkClusterer:
                  base_model: str = "ViT-B/32",
                  finetuned_model_path: str = None,
                  dataset: pd.DataFrame = EmbeddingDatasetBuilder()(),
-                 voc_sig_file: str = "data/voc_sig.pkl") -> None:
+                 describers_path: str = "data/describers.pkl") -> None:
         """
         Initializes the ArtworkClusterer.
 
         Args:
             base_model (str): The base model to use. Defaults to "ViT-B/32".
             finetuned_model_path (str): The path to the finetuned model. Defaults to None.
-            dataset (pd.DataFrame): The embedding dataset which must contain an "embedding" column. Defaults to EmbeddingDatasetBuilder()().
-            voc_sig_file (str): The path to the vocabulary and signifiers file. Defaults to "data/voc_sig.pkl".
+            dataset (pd.DataFrame): The dataset. Defaults to EmbeddingDatasetBuilder()().
+            describers_path (str): The path to the describers. Defaults to "data/describers.pkl".
         """
         self._model, _ = clip.load(base_model, device=device, jit=False)
         self._model.float()
@@ -125,13 +131,33 @@ class ArtworkClusterer:
         embeddings = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
         self._embeddings = np.vstack(embeddings.values)
 
-        with open(voc_sig_file, "rb") as f:
-            voc_sig = pickle.load(f)
-        self._vocabulary = [v[0] for v in voc_sig]
-        self._signifiers = [s[1] for s in voc_sig]
+        with open(describers_path, "rb") as f:
+            describers = pickle.load(f)
+        self._terms = [d[0] for d in describers]
+        self._sentences = [d[1] for d in describers]
     
 
-    def signify_clusters(self, centroids: List[torch.Tensor], n_labels: int = 10) -> List[List[(str, float)]]:
+    def cluster(self, mode: str = "kmeans", n_clusters: int = 10, n_terms: int = 10) -> None:
+        """
+        Clusters the embeddings using the specified mode.
+
+        Args:
+            mode (str): The clustering mode. Defaults to "kmeans".
+            n_clusters (int): The number of clusters to use. Defaults to 10.
+            n_terms (int): The number of terms to assign to each cluster. Defaults to 10.
+        """
+        match mode:
+            case "kmeans":
+                centroids, labels = self._cluster_with_kmeans(n_clusters)
+        
+        self._visualize_with_umap(labels)
+        interpretations = self._signify_clusters(centroids, n_terms)
+
+        # Saving the interpretations
+        with open("data/cluster_interpretations.pkl", "wb") as f:
+            pickle.dump(interpretations, f)
+    
+    def _signify_clusters(self, centroids: List[torch.Tensor], n_terms: int = 10) -> List[List[(str, float)]]:
         """
         Signifies the clusters assigning the most similar labels to each centroid.
 
@@ -143,7 +169,7 @@ class ArtworkClusterer:
             List[List[(str, float)]]: The list of labels for each centroid.
         """
         cluster_interpretations = []
-        signifiers = torch.cat([clip.tokenize(s) for s in self._signifiers]).to(device)
+        signifiers = torch.cat([clip.tokenize(s) for s in self._sentences]).to(device)
 
         with torch.no_grad():
             for centroid in centroids:
@@ -152,14 +178,14 @@ class ArtworkClusterer:
                 signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
 
                 similarity = (100 * centroid @ signifiers.t()).softmax(dim=-1)
-                values, indices = similarity[0].topk(n_labels)
-                interpretation = [(self._vocabulary[i], v.item()) for i, v in zip(indices, values)]
+                values, indices = similarity[0].topk(n_terms)
+                interpretation = [(self._terms[i], v.item()) for i, v in zip(indices, values)]
 
                 cluster_interpretations.append(interpretation)
 
         return cluster_interpretations
 
-    def visualize_with_umap(self, labels: np.ndarray, n_neighbors: int = 30, min_dist: float = .1) -> None:
+    def _visualize_with_umap(self, labels: np.ndarray, n_neighbors: int = 30, min_dist: float = .1) -> None:
         """
         Visualizes the clusters using UMAP.
 
@@ -171,7 +197,7 @@ class ArtworkClusterer:
         Returns:
             None
         """
-        reducer = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist)
+        reducer = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, random_state=42)
         embeddings_2d = reducer.fit_transform(self._embeddings)
 
         plt.figure(figsize=(10, 7))
@@ -181,9 +207,9 @@ class ArtworkClusterer:
         plt.savefig("umap-proj.png", dpi=300, bbox_inches="tight")
         plt.close()
     
-    def cluster_with_kmeans(self, n_clusters: int = 10) -> Tuple[List[torch.Tensor], np.ndarray]:
+    def _cluster_with_kmeans(self, n_clusters: int = 10) -> Tuple[List[torch.Tensor], np.ndarray]:
         """
-        Clusters the embeddings using k-means.
+        Clusters the embeddings using KMeans.
 
         Args:
             n_clusters (int): The number of clusters to use.
@@ -199,4 +225,4 @@ class ArtworkClusterer:
         labels = kmeans.fit_predict(X)
         centroids = kmeans.cluster_centers_
 
-        return [torch.from_numpy(c).float() for c in centroids], labels
+        return [torch.from_numpy(c) for c in centroids], labels

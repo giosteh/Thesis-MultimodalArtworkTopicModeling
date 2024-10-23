@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # initialize the finetuner
+    # 1. initialize the finetuner
     finetuner = CLIPFinetuner(
         model_name="ViT-B/32",
         batch_size=args.batch_size,
@@ -30,5 +30,5 @@ if __name__ == "__main__":
     if args.load:
         finetuner.load_model(args.load)
 
-    # train the model
+    # 2. finetune the model
     finetuner.fit(epochs=args.epochs, verbose=True)

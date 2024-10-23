@@ -28,8 +28,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 class ImageCaptionDataset(Dataset):
 
     def __init__(self,
-                 images_dir: str = "images/imagesf2",
-                 captions_file: str = "artwork_captions.txt",
+                 images_dir: str = "data/images/imagesf2",
+                 captions_file_path: str = "data/artwork_captions.txt",
                  apply_augmentations: bool = False,
                  raw_only: bool = False) -> None:
         """
@@ -43,14 +43,13 @@ class ImageCaptionDataset(Dataset):
         """
         self.apply_augmentations = apply_augmentations
         self._raw_only = raw_only
-        self._images_dir = os.path.join("data", images_dir)
-        captions_file = os.path.join("data", captions_file)
+        self._images_dir = images_dir
 
         _, self._clip_preprocess = clip.load("ViT-B/32", device=device, jit=False)
         self._image_augmenter = ImageAugmenter()
         self._text_augmenter = TextAugmenter()
 
-        with open(captions_file, "r") as f:
+        with open(captions_file_path, "r") as f:
             lines = f.readlines()
         self._image_caption_pairs = [(line.split("\t")[0], line.split("\t")[1].strip()) for line in lines]
     
@@ -99,7 +98,8 @@ class CLIPFinetuner:
                  lr: float = 5e-5,
                  augment: bool = False,
                  unfreeze_from: int = 6,
-                 unfreeze_every: int = 2) -> None:
+                 unfreeze_every: int = 2,
+                 models_dir: str = "models") -> None:
         """
         Initializes the CLIPFinetuner.
 
@@ -112,6 +112,7 @@ class CLIPFinetuner:
             augment (bool, optional): Whether to apply augmentations. Defaults to False.
             unfreeze_from (int, optional): The number of blocks to unfreeze. Defaults to 6.
             unfreeze_every (int, optional): The number of blocks to unfreeze every time. Defaults to 2.
+            models_dir (str, optional): The directory to save the models. Defaults to "models".
         """
         self._model, _ = clip.load(model_name, device=device, jit=False)
         self._model.float()
@@ -130,8 +131,8 @@ class CLIPFinetuner:
         self._optimizer = optim.Adam(self._model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-6, weight_decay=.2)
 
         self._resume_epoch = 0
-        self._models_dir = "models"
-
+        self._models_dir = models_dir
+    
 
     def load_model(self, path: str) -> None:
         """
@@ -371,7 +372,7 @@ class EarlyStopping:
     def __init__(self,
                  model: nn.Module,
                  patience: int = 50,
-                 dir_path: str = "models",
+                 models_dir: str = "models",
                  mode: str = "max"):
         """
         Initialize the early stopping object.
@@ -379,7 +380,7 @@ class EarlyStopping:
         Args:
             model (nn.Module): The model to be trained.
             patience (int, optional): The number of epochs to wait for improvement. Defaults to 50.
-            dir_path (str, optional): The directory path to save the model. Defaults to "models".
+            models_dir (str, optional): The directory path to save the model. Defaults to "models".
             mode (str, optional): The mode of the early stopping. Defaults to "max".
         """
         self._model = model
@@ -388,7 +389,7 @@ class EarlyStopping:
         self._counter = 0
         self._mode = mode
         self._stop = False
-        self._dir_path = dir_path
+        self._models_dir = models_dir
 
         self._train_loss = []
         self._val_loss = []
@@ -451,7 +452,7 @@ class EarlyStopping:
         Returns:
             None
         """
-        checkpoint_path = os.path.join(self._dir_path, name)
+        checkpoint_path = os.path.join(self._models_dir, name)
         torch.save(self._model.state_dict(), checkpoint_path)
     
     def _save_lists(self) -> None:
@@ -469,5 +470,5 @@ class EarlyStopping:
             ("track_score.pkl", (self._val_scores))
         ]
         for name, data in paths:
-            with open(os.path.join(self._dir_path, name), "wb") as f:
+            with open(os.path.join(self._models_dir, name), "wb") as f:
                 pickle.dump(data, f)
