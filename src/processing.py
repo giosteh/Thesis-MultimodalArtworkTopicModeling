@@ -65,10 +65,6 @@ class PromptBuilder:
                     ?artwork artgraph:createdBy ?artist .
                     ?artist artgraph:name ?artistName .
                 }
-                OPTIONAL {
-                    ?artwork artgraph:belongsToMovement ?movement .
-                    ?movement artgraph:name ?movementName .
-                }
             }
         """
     
@@ -83,7 +79,6 @@ class PromptBuilder:
         - style (if present)
         - artist (if present)
         - period (if present)
-        - movement (if present)
 
         The final prompt is then stripped of any extra spaces and any parentheses containing numbers are removed.
 
@@ -99,7 +94,6 @@ class PromptBuilder:
         style = str(individual["style"]) if individual["style"] else None
         artist = str(individual["artist"]) if individual["artist"] else None
         period = str(individual["period"]) if individual["period"] else None
-        movement = str(individual["movement"]) if individual["movement"] else None
         tags_list = [" ".join(tag.split("-")) for tag in tags_list]
 
         genre = genre.lower().replace("genre", "").replace("painting", "") if genre else None
@@ -118,9 +112,7 @@ class PromptBuilder:
 
         period_str = f"during their {period} " if period else ""
 
-        movement_str = f"reflecting influences from {movement} movement " if movement else ""
-
-        prompt = f"{genre_str}painting {media_str}{tag_str}{artist_str}{style_str}{period_str}{movement_str}"
+        prompt = f"{genre_str}painting {media_str}{tag_str}{artist_str}{style_str}{period_str}"
         prompt = prompt.lower()
 
         prompt = re.sub(r"\(\d+\)", "", prompt)
@@ -160,7 +152,6 @@ class PromptBuilder:
                     "media": row.get("mediaName", None),
                     "artist": row.get("artistName", None),
                     "period": row.get("periodName", None),
-                    "movement": row.get("movementName", None),
                     "tags": []
                 }
             
