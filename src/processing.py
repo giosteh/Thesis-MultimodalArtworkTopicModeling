@@ -115,7 +115,7 @@ class PromptBuilder:
         prompt = f"{genre_str}painting {media_str}{tag_str}{artist_str}{style_str}{period_str}"
         prompt = prompt.lower()
 
-        prompt = re.sub(r"\(\d+\)", "", prompt)
+        prompt = re.sub(r"\([^()]*\)", "", prompt)
 
         prompt = " ".join(prompt.split())
 

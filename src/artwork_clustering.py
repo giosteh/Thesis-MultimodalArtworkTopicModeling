@@ -112,7 +112,7 @@ class ArtworkClusterer:
                  base_model: str = "ViT-B/32",
                  finetuned_model_path: str = None,
                  dataset: pd.DataFrame = EmbeddingDatasetBuilder()(),
-                 describers_path: str = "data/describers.pkl") -> None:
+                 signifiers_path: str = "data/signifiers.pkl") -> None:
         """
         Initializes the ArtworkClusterer.
 
@@ -120,7 +120,7 @@ class ArtworkClusterer:
             base_model (str): The base model to use. Defaults to "ViT-B/32".
             finetuned_model_path (str): The path to the finetuned model. Defaults to None.
             dataset (pd.DataFrame): The dataset. Defaults to EmbeddingDatasetBuilder()().
-            describers_path (str): The path to the describers. Defaults to "data/describers.pkl".
+            signifiers_path (str): The path to the signifiers. Defaults to "data/signifiers.pkl".
         """
         self._model, _ = clip.load(base_model, device=device, jit=False)
         self._model.float()
@@ -131,10 +131,8 @@ class ArtworkClusterer:
         embeddings = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
         self._embeddings = np.vstack(embeddings.values)
 
-        with open(describers_path, "rb") as f:
-            describers = pickle.load(f)
-        self._terms = [d[0] for d in describers]
-        self._sentences = [d[1] for d in describers]
+        with open(signifiers_path, "rb") as f:
+            self._signifiers = pickle.load(f)
     
 
     def cluster(self, mode: str = "kmeans", n_clusters: int = 10, n_terms: int = 10) -> None:
@@ -169,7 +167,7 @@ class ArtworkClusterer:
             List[List[(str, float)]]: The list of labels for each centroid.
         """
         cluster_interpretations = []
-        signifiers = torch.cat([clip.tokenize(s) for s in self._sentences]).to(device)
+        signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in self._signifiers]).to(device)
 
         with torch.no_grad():
             for centroid in centroids:
@@ -179,7 +177,7 @@ class ArtworkClusterer:
 
                 similarity = (100 * centroid @ signifiers.t()).softmax(dim=-1)
                 values, indices = similarity[0].topk(n_terms)
-                interpretation = [(self._terms[i], v.item()) for i, v in zip(indices, values)]
+                interpretation = [(self._signifiers[i], v.item()) for i, v in zip(indices, values)]
 
                 cluster_interpretations.append(interpretation)
 
