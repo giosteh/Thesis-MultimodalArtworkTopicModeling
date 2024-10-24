@@ -25,18 +25,18 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class PromptBuilder:
 
-    def __init__(self, captions_file: str = "artwork_captions.txt") -> None:
+    def __init__(self, captions_file: str = "data/artwork_captions.txt") -> None:
         """
         Initializes the prompt builder.
 
         Args:
-            captions_file (str): The file containing the captions. Defaults to "artwork_captions.txt".
+            captions_file (str): The file containing the captions. Defaults to "data/artwork_captions.txt".
         """
-        self._captions_file = os.path.join("data", captions_file)
+        self._captions_file = captions_file
         self._sparql_query = """
             PREFIX artgraph: <https://www.gennarovessio.com/artgraph-schema#>
 
-            SELECT ?artworkName ?genreName ?tagName ?mediaName ?styleName ?periodName ?artistName ?movementName
+            SELECT ?artworkName ?genreName ?tagName ?mediaName ?styleName ?periodName ?artistName
 
             WHERE {
                 ?artwork a artgraph:Artwork .
@@ -83,26 +83,27 @@ class PromptBuilder:
         The final prompt is then stripped of any extra spaces and any parentheses containing numbers are removed.
 
         Args:
-            individual (Dict[str]): The dictionary containing the information from the SPARQL query.
+            individual (Dict[str, str]): The dictionary containing the information from the SPARQL query.
             tags_list (List[str]): The list of tags associated with the artwork.
 
         Returns:
             str: The built prompt.
         """
-        genre = str(individual["genre"]) if individual["genre"] else None
-        media = str(individual["media"]) if individual["media"] else None
-        style = str(individual["style"]) if individual["style"] else None
-        artist = str(individual["artist"]) if individual["artist"] else None
-        period = str(individual["period"]) if individual["period"] else None
-        tags_list = [" ".join(tag.split("-")) for tag in tags_list]
+        genre = str(individual["genre"]).strip().lower() if individual["genre"] else None
+        media = str(individual["media"]).strip().lower() if individual["media"] else None
+        style = str(individual["style"]).strip().lower() if individual["style"] else None
+        artist = str(individual["artist"]).strip().lower() if individual["artist"] else None
+        period = str(individual["period"]).strip().lower() if individual["period"] else None
 
-        genre = genre.lower().replace("genre", "").replace("painting", "") if genre else None
-        genre_str = f"{genre} " if genre else ""
+        genre_str = f"{genre.replace("genre", "").replace("painting", "")} " if genre else ""
 
         media_str = f"rendered in {media} " if media else ""
 
-        tags = ", ".join(tags_list) if tags_list else None
-        tag_str = f"showcasing {tags} " if tags else ""
+        tags_list = [tag for tag in tags_list if not bool(re.search(r"[&#;]", tag))]
+        tags_list = [re.sub(r"[A-Z].([A-Z].)*]", "", tag) for tag in tags_list]
+        tags_list = tags_list[:3]
+        tags = ", ".join([" ".join(tag.split("-")) for tag in tags_list]) if tags_list else None
+        tag_str = f"displaying {tags} " if tags else ""
         tag_str = tag_str.replace(" and", ",")
 
         style_str = f"in a {style} manner " if style else ""
@@ -110,19 +111,17 @@ class PromptBuilder:
         artist = " ".join(artist.split("-")) if artist else None
         artist_str = f"made by {artist} " if artist else ""
 
-        period_str = f"during their {period} " if period else ""
+        period_str = f"during their {period} period " if period else ""
 
-        prompt = f"{genre_str}painting {media_str}{tag_str}{artist_str}{style_str}{period_str}"
-        prompt = prompt.lower()
-
+        prompt = f"{genre_str}painting {media_str}{tag_str}{artist_str}"
         prompt = re.sub(r"\([^()]*\)", "", prompt)
+        prompt = f"{prompt}{style_str}{period_str}"
 
         prompt = " ".join(prompt.split())
 
-        return prompt
+        return prompt.strip()
 
-
-    def __call__(self, kg_path: str = "artgraph-rdf/artgraph-facts.ttl") -> None:
+    def __call__(self, kg_path: str = "data/artgraph-rdf/artgraph-facts.ttl") -> None:
         """
         Builds the captions file by querying the knowledge graph at the given path,
         and writing each artwork with its corresponding prompt to the file.
@@ -134,7 +133,6 @@ class PromptBuilder:
         Returns:
             None
         """
-        kg_path = os.path.join("data", kg_path)
         kg = Graph()
         kg.parse(kg_path, format="turtle")
 
@@ -154,16 +152,16 @@ class PromptBuilder:
                     "period": row.get("periodName", None),
                     "tags": []
                 }
-            
+            # Handling tags
             if tag_name:
-                tag_name = str(tag_name).strip()
+                tag_name = str(tag_name).strip().lower()
                 if tag_name not in individuals[name]["tags"]:
                     individuals[name]["tags"].append(tag_name)
         
         with open(self._captions_file, "w") as f:
             for name, individual in individuals.items():
                 tags = individual["tags"]
-                prompt = self._build_prompt(individual, tags[:3])
+                prompt = self._build_prompt(individual, tags)
                 f.write(f"{name}\t{prompt}\n")
 
 
