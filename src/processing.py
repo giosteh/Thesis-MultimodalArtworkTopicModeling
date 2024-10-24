@@ -100,7 +100,7 @@ class PromptBuilder:
         media_str = f"rendered in {media} " if media else ""
 
         tags_list = [tag for tag in tags_list if not bool(re.search(r"[&#;]", tag))]
-        tags_list = [re.sub(r"[A-Z].([A-Z].)*]", "", tag) for tag in tags_list]
+        tags_list = [re.sub(r"[A-Z]\.([A-Z]\.)*", "", tag) for tag in tags_list]
         tags_list = tags_list[:3]
         tags = ", ".join([" ".join(tag.split("-")) for tag in tags_list]) if tags_list else None
         tag_str = f"displaying {tags} " if tags else ""
