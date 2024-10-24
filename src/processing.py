@@ -95,28 +95,26 @@ class PromptBuilder:
         artist = str(individual["artist"]).strip().lower() if individual["artist"] else None
         period = str(individual["period"]).strip().lower() if individual["period"] else None
 
-        genre_str = f"{genre.replace("genre", "").replace("painting", "")} " if genre else ""
+        genre_str = re.sub(r"\([^()]*\)", "", genre_str) if genre else None
+        genre_str = f"{genre.replace("painting", "")} " if genre_str else ""
 
         media_str = f"rendered in {media} " if media else ""
 
         tags_list = [tag for tag in tags_list if not bool(re.search(r"[&#;]", tag))]
-        tags_list = [re.sub(r"[A-Z]\.([A-Z]\.)*", "", tag) for tag in tags_list]
+        tags_list = [re.sub(r"[a-z]\.([a-z]\.)*", "", tag) for tag in tags_list]
         tags_list = tags_list[:3]
-        tags = ", ".join([" ".join(tag.split("-")) for tag in tags_list]) if tags_list else None
-        tag_str = f"displaying {tags} " if tags else ""
-        tag_str = tag_str.replace(" and", ",")
+        tags_str = ", ".join([" ".join(tag.split("-")) for tag in tags_list]) if tags_list else None
+        tag_str = f"displaying {tags_str.replace(" and", ",")} " if tags_str else ""
 
         style_str = f"in a {style} manner " if style else ""
 
-        artist = " ".join(artist.split("-")) if artist else None
-        artist_str = f"made by {artist} " if artist else ""
+        artist_str = " ".join(artist.split("-")) if artist else None
+        artist_str = f"made by {re.sub(r"[-]+", "", artist_str)} " if artist_str else ""
 
-        period_str = f"during their {period} period " if period else ""
+        period_str = period.replace("period", "").replace("painting", "").replace("paintings", "") if period else None
+        period_str = f"during {period_str} " if period_str else ""
 
-        prompt = f"{genre_str}painting {media_str}{tag_str}{artist_str}"
-        prompt = re.sub(r"\([^()]*\)", "", prompt)
-        prompt = f"{prompt}{style_str}{period_str}"
-
+        prompt = f"{genre_str}painting {media_str}{tag_str}{artist_str}{style_str}{period_str}"
         prompt = " ".join(prompt.split())
 
         return prompt.strip()
