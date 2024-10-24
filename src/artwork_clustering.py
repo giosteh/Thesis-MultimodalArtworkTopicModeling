@@ -144,23 +144,24 @@ class ArtworkClusterer:
             n_clusters (int): The number of clusters to use. Defaults to 10.
             n_terms (int): The number of terms to assign to each cluster. Defaults to 10.
         """
+        representatives, labels = None, None
         match mode:
             case "kmeans":
-                centroids, labels = self._cluster_with_kmeans(n_clusters)
+                representatives, labels = self._cluster_with_kmeans(n_clusters)
         
         self._visualize_with_umap(labels)
-        interpretations = self._signify_clusters(centroids, n_terms)
+        interpretations = self._signify_clusters(representatives, n_terms)
 
         # Saving the interpretations
         with open("data/cluster_interpretations.pkl", "wb") as f:
             pickle.dump(interpretations, f)
     
-    def _signify_clusters(self, centroids: List[torch.Tensor], n_terms: int = 10) -> List[List[(str, float)]]:
+    def _signify_clusters(self, representatives: List[torch.Tensor], n_terms: int = 10) -> List[List[(str, float)]]:
         """
         Signifies the clusters assigning the most similar labels to each centroid.
 
         Args:
-            centroids (List[torch.Tensor]): The centroids.
+            representatives (List[torch.Tensor]): The cluster representatives.
             n_labels (int): The number of labels to assign.
 
         Returns:
@@ -170,12 +171,12 @@ class ArtworkClusterer:
         signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in self._signifiers]).to(device)
 
         with torch.no_grad():
-            for centroid in centroids:
-                centroid = centroid.to(device)
+            for representative in representatives:
+                representative = representative.to(device)
                 signifiers = self._model.encode_text(signifiers)
                 signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
 
-                similarity = (100 * centroid @ signifiers.t()).softmax(dim=-1)
+                similarity = (100 * representative @ signifiers.t()).softmax(dim=-1)
                 values, indices = similarity[0].topk(n_terms)
                 interpretation = [(self._signifiers[i], v.item()) for i, v in zip(indices, values)]
 
