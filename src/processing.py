@@ -95,7 +95,7 @@ class PromptBuilder:
         artist = str(individual["artist"]).strip().lower() if individual["artist"] else None
         period = str(individual["period"]).strip().lower() if individual["period"] else None
 
-        genre_str = re.sub(r"\([^()]*\)", "", genre_str) if genre else None
+        genre_str = re.sub(r"\([^()]*\)", "", genre) if genre else None
         genre_str = genre_str.replace("painting", "") if genre_str else None
         genre_str = f"{genre_str} " if genre_str else ""
 
