@@ -96,7 +96,8 @@ class PromptBuilder:
         period = str(individual["period"]).strip().lower() if individual["period"] else None
 
         genre_str = re.sub(r"\([^()]*\)", "", genre_str) if genre else None
-        genre_str = f"{genre.replace("painting", "")} " if genre_str else ""
+        genre_str = genre_str.replace("painting", "") if genre_str else None
+        genre_str = f"{genre_str} " if genre_str else ""
 
         media_str = f"rendered in {media} " if media else ""
 
@@ -104,12 +105,14 @@ class PromptBuilder:
         tags_list = [re.sub(r"[a-z]\.([a-z]\.)*", "", tag) for tag in tags_list]
         tags_list = tags_list[:3]
         tags_str = ", ".join([" ".join(tag.split("-")) for tag in tags_list]) if tags_list else None
-        tag_str = f"displaying {tags_str.replace(" and", ",")} " if tags_str else ""
+        tags_str = tags_str.replace(" and", ",") if tags_str else None
+        tag_str = f"displaying {tags_str} " if tags_str else ""
 
         style_str = f"in a {style} manner " if style else ""
 
         artist_str = " ".join(artist.split("-")) if artist else None
-        artist_str = f"made by {re.sub(r"[-]+", "", artist_str)} " if artist_str else ""
+        artist_str = re.sub(r"[-]+", "", artist_str) if artist_str else None
+        artist_str = f"made by {artist_str} " if artist_str else ""
 
         period_str = period.replace("period", "").replace("painting", "").replace("paintings", "") if period else None
         period_str = f"during {period_str} " if period_str else ""
