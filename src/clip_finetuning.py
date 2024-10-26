@@ -465,10 +465,6 @@ class EarlyStopping:
         Returns:
             None
         """
-        paths = [
-            ("track_loss.pkl", (self._train_loss, self._val_loss)),
-            ("track_score.pkl", (self._val_scores))
-        ]
-        for name, data in paths:
-            with open(os.path.join(self._models_dir, name), "wb") as f:
-                pickle.dump(data, f)
+        data = (self._train_loss, self._val_loss, self._val_scores)
+        with open(os.path.join(self._models_dir, "tracking.pkl"), "wb") as f:
+            pickle.dump(data, f)
