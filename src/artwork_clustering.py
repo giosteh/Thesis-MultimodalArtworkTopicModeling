@@ -6,7 +6,7 @@ import clip
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
-from sklearn.cluster import KMeans
+from sklearn.cluster import MiniBatchKMeans
 import umap
 
 from clip_finetuning import ImageCaptionDataset
@@ -220,7 +220,7 @@ class ArtworkClusterer:
         X_normalized = X_torch / X_torch.norm(dim=-1, keepdim=True)
         X = X_normalized.cpu().numpy()
 
-        kmeans = KMeans(n_clusters=n_clusters, init="k-means++", max_iter=1000, n_init=10, random_state=0)
+        kmeans = MiniBatchKMeans(n_clusters=n_clusters, init="k-means++", max_iter=1000, n_init=10, random_state=0)
         labels = kmeans.fit_predict(X)
         centroids = kmeans.cluster_centers_
 
