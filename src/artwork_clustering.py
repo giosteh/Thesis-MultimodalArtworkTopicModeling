@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.cluster import MiniBatchKMeans, DBSCAN
+from sklearn.cluster import KMeans, DBSCAN
 from hdbscan import HDBSCAN
 import umap
 
@@ -168,7 +168,7 @@ class ArtworkClusterer:
         clusterer = None
         match method: # Clustering method
             case "kmeans":
-                clusterer = MiniBatchKMeans(
+                clusterer = KMeans(
                     n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
                     metric="cosine",
                     init="k-means++",
@@ -262,7 +262,7 @@ class ArtworkClusterer:
                 cluster_reprs.append(torch.from_numpy(medoid).float())
         return cluster_reprs
     
-    def _signify_clusters(self, cluster_reprs: List[torch.Tensor], n_terms: int = 10) -> List[List[(str, float)]]:
+    def _signify_clusters(self, cluster_reprs: List[torch.Tensor], n_terms: int = 10) -> List[List[Tuple[str, float]]]:
         """
         Signifies the clusters assigning the most similar labels to each centroid.
 
@@ -271,7 +271,7 @@ class ArtworkClusterer:
             n_labels (int): The number of labels to assign. Defaults to 10.
 
         Returns:
-            List[List[(str, float)]]: The list of labels for each centroid.
+            List[List[Tuple[str, float]]]: The list of interpretations.
         """
         interpretations = []
         signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in self._signifiers]).to(device)
@@ -287,7 +287,6 @@ class ArtworkClusterer:
                 interpretation = [(self._signifiers[i], v.item()) for i, v in zip(indices, values)]
 
                 interpretations.append(interpretation)
-
         return interpretations
 
     def _visualize(self, labels: np.ndarray, n_neighbors: int = 15, min_dist: float = .1) -> None:
