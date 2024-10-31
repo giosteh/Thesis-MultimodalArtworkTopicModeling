@@ -28,7 +28,7 @@ if __name__ == "__main__":
     # 1. initialize the builder
     builder = EmbeddingDatasetBuilder(
         base_model=args.base_model,
-        finetuned_model_path=args.finetuned_model,
+        model_path=args.finetuned_model,
         use_base_model=args.use_base_model
     )
     finetuned_model = args.finetuned_model if not args.use_base_model else None
@@ -36,8 +36,9 @@ if __name__ == "__main__":
     # 2. initialize the clusterer
     clusterer = ArtworkClusterer(
         base_model=args.base_model,
-        finetuned_model_path=finetuned_model,
-        dataset=builder()
+        model_path=args.finetuned_model,
+        dataset=builder(),
+        signifiers_path="data/signifiers.pkl"
     )
 
     # 3. perform clustering

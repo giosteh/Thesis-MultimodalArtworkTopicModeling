@@ -50,7 +50,7 @@ class EmbeddingDatasetBuilder:
 
     def __init__(self,
                  base_model: str = "ViT-B/32",
-                 model_path: str = "models/finetuned.pt",
+                 model_path: str = "models/finetuned-v2.pt",
                  raw_dataset: ImageCaptionDataset = ImageCaptionDataset(raw_only=True),
                  dataset: ImageCaptionDataset = ImageCaptionDataset(),
                  use_base_model: bool = False) -> None:
@@ -315,4 +315,3 @@ class ArtworkClusterer:
         plt.title("UMAP projection of the clustered embeddings")
         plt.savefig("visual.png", dpi=300, bbox_inches="tight")
         plt.close()
-    
