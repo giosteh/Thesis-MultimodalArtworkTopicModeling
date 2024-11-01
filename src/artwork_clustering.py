@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans, DBSCAN
 from hdbscan import HDBSCAN
-import umap
+from umap import UMAP
 
 from clip_finetuning import ImageCaptionDataset
 
@@ -194,7 +194,7 @@ class ArtworkClusterer:
         reducer = None
         match reduce_with: # Dimensionality reduction
             case "umap":
-                reducer = umap.UMAP(
+                reducer = UMAP(
                     n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
                     n_neighbors=kwargs["n_neighbors"] if "n_neighbors" in kwargs else 15,
                     min_dist=kwargs["min_dist"] if "min_dist" in kwargs else .1,
@@ -300,7 +300,7 @@ class ArtworkClusterer:
         Returns:
             None
         """
-        reducer = umap.UMAP(
+        reducer = UMAP(
             n_neighbors=n_neighbors,
             min_dist=min_dist,
             random_state=42
