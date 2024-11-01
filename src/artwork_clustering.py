@@ -179,8 +179,7 @@ class ArtworkClusterer:
                 clusterer = DBSCAN(
                     eps=kwargs["eps"] if "eps" in kwargs else 0.2,
                     min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 5,
-                    metric="cosine",
-                    n_jobs=-1
+                    metric="cosine"
                 )
             case "hdbscan":
                 clusterer = HDBSCAN(
