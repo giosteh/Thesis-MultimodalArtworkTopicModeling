@@ -170,7 +170,6 @@ class ArtworkClusterer:
             case "kmeans":
                 clusterer = KMeans(
                     n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
-                    metric="cosine",
                     init="k-means++",
                     n_init=10,
                     max_iter=1000,

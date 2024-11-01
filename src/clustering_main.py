@@ -3,15 +3,17 @@ Main file for clustering artworks.
 """
 
 import argparse
-from artwork_clustering import EmbeddingDatasetBuilder, ArtworkClusterer
+import pandas as pd
+from artwork_clustering import ArtworkClusterer
 
 
 if __name__ == "__main__":
     # command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("-bm", "--base_model", type=str, default="ViT-B/32")
-    parser.add_argument("-fm", "--finetuned_model", type=str, default="models/finetuned-v2.pt")
-    parser.add_argument("--use_base_model", action="store_true")
+    
+    parser.add_argument("--finetuned_model", type=str, default="models/finetuned-v2.pt")
+    parser.add_argument("--signifiers", type=str, default="data/signifiers.pkl")
+    parser.add_argument("--dataset", type=str, default="data/embeddings.csv")
     parser.add_argument("--method", type=str, default=None)
     parser.add_argument("--n_terms", type=int, default=10)
 
@@ -25,23 +27,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # 1. initialize the builder
-    builder = EmbeddingDatasetBuilder(
-        base_model=args.base_model,
-        model_path=args.finetuned_model,
-        use_base_model=args.use_base_model
-    )
-    finetuned_model = args.finetuned_model if not args.use_base_model else None
-
-    # 2. initialize the clusterer
+    df = pd.read_csv(args.dataset)
+    # 1. initialize the clusterer
     clusterer = ArtworkClusterer(
-        base_model=args.base_model,
         model_path=args.finetuned_model,
-        dataset=builder(),
-        signifiers_path="data/signifiers.pkl"
+        dataset=df,
+        signifiers_path=args.signifiers
     )
 
-    # 3. perform clustering
+    # 2. perform clustering
     clusterer.cluster(
         method=args.method,
         reduce_with=args.reduce_with,
