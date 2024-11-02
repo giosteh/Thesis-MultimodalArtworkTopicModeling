@@ -144,7 +144,7 @@ class ArtworkClusterer:
         self._probabilities = None
 
         with open(signifiers_path, "rb") as f:
-            self._signifiers = pickle.load(f)
+            self._groups_of_signifiers = pickle.load(f) # List[List[str]]
     
 
     def cluster(self,
@@ -262,31 +262,32 @@ class ArtworkClusterer:
     
     def _signify_clusters(self, cluster_reprs: List[torch.Tensor], n_terms: int = 10) -> List[List[Tuple[str, float]]]:
         """
-        Signifies the clusters assigning the most similar labels to each centroid.
+        Signifies the clusters found by the model.
 
         Args:
             cluster_reprs (List[torch.Tensor]): The cluster representatives.
-            n_labels (int): The number of labels to assign. Defaults to 10.
+            n_terms (int): The number of terms to use. Defaults to 10.
 
         Returns:
-            List[List[Tuple[str, float]]]: The list of interpretations.
+            List[List[Tuple[str, float]]]: The interpretations.
         """
-        interpretations = []
-        signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in self._signifiers]).to(device)
-
-        with torch.no_grad():
-            for cluster_repr in cluster_reprs:
-                cluster_repr = cluster_repr.to(device)
+        cluster_interps = []
+        for cluster_repr in cluster_reprs:
+            interpretations = []
+            cluster_repr = cluster_repr.to(device)
+            for group in self._groups_of_signifiers:
+                signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in group]).to(device)
                 signifiers = self._model.encode_text(signifiers)
                 signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
 
                 similarity = (100 * cluster_repr @ signifiers.t()).softmax(dim=-1)
                 values, indices = similarity[0].topk(n_terms)
-                interpretation = [(self._signifiers[i], v.item()) for i, v in zip(indices, values)]
-
+                interpretation = [(group[i], v.item()) for i, v in zip(indices, values)]
                 interpretations.append(interpretation)
-        return interpretations
 
+            cluster_interps.append(interpretations)
+        return cluster_interps
+    
     def _visualize(self, labels: np.ndarray, n_neighbors: int = 15, min_dist: float = .1) -> None:
         """
         Visualizes the clusters using UMAP.
