@@ -256,7 +256,6 @@ class ArtworkClusterer:
                     distances = distances * weights.reshape(-1, 1)
                 total_distances = np.sum(distances, axis=1)
                 medoid = points[total_distances.argmin()]
-
                 cluster_reprs.append(torch.from_numpy(medoid).float())
         return cluster_reprs
     
