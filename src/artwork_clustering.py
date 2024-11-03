@@ -273,23 +273,27 @@ class ArtworkClusterer:
             List[List[Tuple[str, float]]]: The interpretations.
         """
         cluster_interps = []
-        for cluster_repr in cluster_reprs:
-            interpretations = []
-            cluster_repr = cluster_repr.to(device)
-            for group in self._groups_of_signifiers:
-                signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in group]).to(device)
-                signifiers = self._model.encode_text(signifiers)
-                signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
-                if self._reducer: # Dimensionality reduction
-                    signifiers = self._reducer.transform(signifiers.cpu().numpy())
-                    signifiers = torch.from_numpy(signifiers).float().to(device)
-                
-                similarity = (100 * cluster_repr @ signifiers.t()).softmax(dim=-1)
-                values, indices = similarity[0].topk(n_terms)
-                interpretation = [(group[i], v.item()) for i, v in zip(indices, values)]
-                interpretations.append(interpretation)
 
-            cluster_interps.append(interpretations)
+        with torch.no_grad():
+            for cluster_repr in cluster_reprs:
+                interpretations = []
+                cluster_repr = cluster_repr.to(device)
+
+                for group in self._groups_of_signifiers:
+                    if len(group) > 0:
+                        signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in group]).to(device)
+                        signifiers = self._model.encode_text(signifiers)
+                        signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
+                        if self._reducer: # Dimensionality reduction
+                            signifiers = self._reducer.transform(signifiers.cpu().numpy())
+                            signifiers = torch.from_numpy(signifiers).float().to(device)
+                
+                        similarity = (100 * cluster_repr @ signifiers.t()).softmax(dim=-1)
+                        values, indices = similarity[0].topk(n_terms)
+                        interpretation = [(group[i], v.item()) for i, v in zip(indices, values)]
+                        interpretations.append(interpretation)
+
+                cluster_interps.append(interpretations)
         return cluster_interps
     
     def _visualize(self, labels: np.ndarray, n_neighbors: int = 15, min_dist: float = .1) -> None:
