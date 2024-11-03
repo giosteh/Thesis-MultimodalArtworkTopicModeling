@@ -143,6 +143,7 @@ class ArtworkClusterer:
         self._labels = None
         self._probabilities = None
 
+        self._reducer = None
         with open(signifiers_path, "rb") as f:
             self._groups_of_signifiers = pickle.load(f) # List[List[str]]
     
@@ -212,6 +213,7 @@ class ArtworkClusterer:
                 )
         if reducer:
             self._embeddings = reducer.fit_transform(self._embeddings)
+            self._reducer = reducer
         if clusterer:
             self._labels = clusterer.fit_predict(self._embeddings)
             if method == "hdbscan":
@@ -278,7 +280,10 @@ class ArtworkClusterer:
                 signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in group]).to(device)
                 signifiers = self._model.encode_text(signifiers)
                 signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
-
+                if self._reducer: # Dimensionality reduction
+                    signifiers = self._reducer.transform(signifiers.cpu().numpy())
+                    signifiers = torch.from_numpy(signifiers).float().to(device)
+                
                 similarity = (100 * cluster_repr @ signifiers.t()).softmax(dim=-1)
                 values, indices = similarity[0].topk(n_terms)
                 interpretation = [(group[i], v.item()) for i, v in zip(indices, values)]
