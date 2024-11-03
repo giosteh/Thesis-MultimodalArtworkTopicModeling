@@ -288,8 +288,8 @@ class ArtworkClusterer:
                             signifiers = self._reducer.transform(signifiers.cpu().numpy())
                             signifiers = torch.from_numpy(signifiers).float().to(device)
                 
-                        similarity = (100 * cluster_repr @ signifiers.t()).softmax(dim=-1)
-                        values, indices = similarity[0].topk(n_terms)
+                        similarity = (100.0 * cluster_repr @ signifiers.t()).softmax(dim=-1)
+                        values, indices = similarity[0].topk(min(n_terms, len(group)))
                         interpretation = [(group[i], v.item()) for i, v in zip(indices, values)]
                         interpretations.append(interpretation)
 
