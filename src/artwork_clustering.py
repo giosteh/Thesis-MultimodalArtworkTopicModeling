@@ -316,7 +316,7 @@ class ArtworkClusterer:
         embeddings_2d = reducer.fit_transform(self._embeddings)
 
         plt.figure(figsize=(10, 7))
-        plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap="Spectral", s=5)
+        plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap="Spectral", s=2)
         plt.colorbar(label="Cluster label")
         plt.title("UMAP projection of the clustered embeddings")
         plt.savefig("visual.png", dpi=300, bbox_inches="tight")
