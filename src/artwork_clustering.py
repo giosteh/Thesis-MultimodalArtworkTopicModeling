@@ -296,7 +296,7 @@ class ArtworkClusterer:
                 cluster_interps.append(interpretations)
         return cluster_interps
     
-    def _visualize(self, labels: np.ndarray, n_neighbors: int = 15, min_dist: float = .1) -> None:
+    def _visualize(self, labels: np.ndarray, n_neighbors: int = 50, min_dist: float = .1) -> None:
         """
         Visualizes the clusters using UMAP.
 
@@ -311,7 +311,8 @@ class ArtworkClusterer:
         reducer = UMAP(
             n_neighbors=n_neighbors,
             min_dist=min_dist,
-            random_state=42
+            random_state=42,
+            n_jobs=1
         )
         embeddings_2d = reducer.fit_transform(self._embeddings)
 
