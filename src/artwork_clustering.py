@@ -140,7 +140,6 @@ class ArtworkClusterer:
         X_normalized = X_torch / X_torch.norm(dim=-1, keepdim=True)
         self._embeddings = X_normalized.cpu().numpy()
         self._labels = None
-        self._probabilities = None
 
         self._reducer = None
         with open(signifiers_path, "rb") as f:
@@ -166,7 +165,7 @@ class ArtworkClusterer:
             None
         """
         clusterer = None
-        match method: # Clustering method
+        match method:
             case "kmeans":
                 clusterer = KMeans(
                     n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
@@ -183,7 +182,7 @@ class ArtworkClusterer:
                 )
         
         reducer = None
-        match reduce_with: # Dimensionality reduction
+        match reduce_with:
             case "umap":
                 reducer = UMAP(
                     n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
@@ -202,12 +201,12 @@ class ArtworkClusterer:
             self._reducer = reducer
         if clusterer:
             self._labels = clusterer.fit_predict(self._embeddings)
-            if method == "hdbscan":
-                self._probabilities = clusterer.probabilities_
-        
+
+        # Getting cluster representatives and interpretations        
         cluster_reprs = self._get_cluster_reprs(method, represent_with)
         interpretations = self._signify_clusters(cluster_reprs, n_terms)
-        # Saving and visualizing
+
+        # Saving results
         with open("data/results.pkl", "wb") as f:
             data = (interpretations, self._labels)
             pickle.dump(data, f)
@@ -230,20 +229,15 @@ class ArtworkClusterer:
         for label in unique_labels:
             mask = (self._labels == label)
             points = self._embeddings[mask]
-            weights = self._probabilities[mask] if clustering_method == "hdbscan" else None
 
             centroid = np.mean(points, axis=0)
-            if weights:
-                centroid = np.average(points, axis=0, weights=weights)
-            
             if mode == "centroid":
                 cluster_reprs.append(torch.from_numpy(centroid).float())
             else:
                 distances = cdist(points, points)
-                if weights:
-                    distances = distances * weights.reshape(-1, 1)
                 total_distances = np.sum(distances, axis=1)
                 medoid = points[total_distances.argmin()]
+
                 cluster_reprs.append(torch.from_numpy(medoid).float())
         return cluster_reprs
     
@@ -270,7 +264,7 @@ class ArtworkClusterer:
                         signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in group]).to(device)
                         signifiers = self._model.encode_text(signifiers)
                         signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
-                        if self._reducer: # Dimensionality reduction
+                        if self._reducer:
                             signifiers = self._reducer.transform(signifiers.cpu().numpy())
                             signifiers = torch.from_numpy(signifiers).float().to(device)
                 
