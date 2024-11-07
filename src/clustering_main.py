@@ -15,12 +15,11 @@ if __name__ == "__main__":
     parser.add_argument("--signifiers", type=str, default="data/signifiers.pkl")
     parser.add_argument("--dataset", type=str, default="data/embeddings.csv")
     parser.add_argument("--method", type=str, default=None)
-    parser.add_argument("--n_terms", type=int, default=10)
+    parser.add_argument("--n_terms", type=int, default=5)
 
     parser.add_argument("--n_clusters", type=int, default=10)
     parser.add_argument("--eps", type=float, default=0.2)
-    parser.add_argument("--min_samples", type=int, default=5)
-    parser.add_argument("--min_cluster_size", type=int, default=10)
+    parser.add_argument("--min_samples", type=int, default=20)
     parser.add_argument("--reduce_with", type=str, default=None)
     parser.add_argument("--n_components", type=int, default=32)
     parser.add_argument("--represent_with", type=str, default="centroid")
@@ -44,6 +43,5 @@ if __name__ == "__main__":
         n_clusters=args.n_clusters,
         eps=args.eps,
         min_samples=args.min_samples,
-        min_cluster_size=args.min_cluster_size,
         n_components=args.n_components
     )

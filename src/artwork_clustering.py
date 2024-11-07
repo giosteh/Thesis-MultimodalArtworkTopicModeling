@@ -9,7 +9,6 @@ from torch.utils.data import DataLoader
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans, DBSCAN
-from hdbscan import HDBSCAN
 from umap import UMAP
 
 from clip_finetuning import ImageCaptionDataset
@@ -152,7 +151,7 @@ class ArtworkClusterer:
                 method: str = "kmeans",
                 reduce_with: str = None,
                 represent_with: str = "centroid",
-                n_terms: int = 10,
+                n_terms: int = 5,
                 **kwargs) -> None:
         """
         Clusters the embeddings using the specified mode.
@@ -161,7 +160,7 @@ class ArtworkClusterer:
             method (str): The clustering method to use. Defaults to "kmeans".
             reduce_with (str): The method to use for dimensionality reduction. Defaults to None.
             represent_with (str): The method to use to represent the clusters. Defaults to "centroid".
-            n_terms (int): The number of terms to use. Defaults to 10.
+            n_terms (int): The number of terms to use. Defaults to 5.
 
         Returns:
             None
@@ -179,16 +178,8 @@ class ArtworkClusterer:
             case "dbscan":
                 clusterer = DBSCAN(
                     eps=kwargs["eps"] if "eps" in kwargs else 0.2,
-                    min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 5,
+                    min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 20,
                     metric="cosine"
-                )
-            case "hdbscan":
-                clusterer = HDBSCAN(
-                    min_cluster_size=kwargs["min_cluster_size"] if "min_cluster_size" in kwargs else 10,
-                    min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 5,
-                    metric="cosine",
-                    cluster_selection_method="eom",
-                    prediction_data=True
                 )
         
         reducer = None
@@ -204,11 +195,6 @@ class ArtworkClusterer:
                 reducer = TSNE(
                     n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
                     perplexity=kwargs["perplexity"] if "perplexity" in kwargs else 30,
-                    random_state=42
-                )
-            case "pca":
-                reducer = PCA(
-                    n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
                     random_state=42
                 )
         if reducer:
@@ -261,13 +247,13 @@ class ArtworkClusterer:
                 cluster_reprs.append(torch.from_numpy(medoid).float())
         return cluster_reprs
     
-    def _signify_clusters(self, cluster_reprs: List[torch.Tensor], n_terms: int = 10) -> List[List[Tuple[str, float]]]:
+    def _signify_clusters(self, cluster_reprs: List[torch.Tensor], n_terms: int = 5) -> List[List[Tuple[str, float]]]:
         """
         Signifies the clusters found by the model.
 
         Args:
             cluster_reprs (List[torch.Tensor]): The cluster representatives.
-            n_terms (int): The number of terms to use. Defaults to 10.
+            n_terms (int): The number of terms to use. Defaults to 5.
 
         Returns:
             List[List[Tuple[str, float]]]: The interpretations.
@@ -302,7 +288,7 @@ class ArtworkClusterer:
 
         Args:
             labels (np.ndarray): The labels.
-            n_neighbors (int): The number of neighbors to use for UMAP. Defaults to 30.
+            n_neighbors (int): The number of neighbors to use for UMAP. Defaults to 50.
             min_dist (float): The minimum distance to use for UMAP. Defaults to .1.
 
         Returns:
