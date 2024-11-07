@@ -223,7 +223,7 @@ class ArtworkClusterer:
         interpretations = self._signify_clusters(cluster_reprs, n_terms)
         # Saving and visualizing
         with open("data/results.pkl", "wb") as f:
-            data = (self._labels, interpretations)
+            data = (interpretations, self._labels)
             pickle.dump(data, f)
         self._visualize(self._labels)
     
@@ -289,7 +289,7 @@ class ArtworkClusterer:
                             signifiers = torch.from_numpy(signifiers).float().to(device)
                 
                         similarity = (100.0 * cluster_repr @ signifiers.t()).softmax(dim=-1)
-                        values, indices = similarity[0].topk(min(n_terms, len(group)))
+                        values, indices = similarity.topk(min(n_terms, len(group)))
                         interpretation = [(group[i], v.item()) for i, v in zip(indices, values)]
                         interpretations.append(interpretation)
 
