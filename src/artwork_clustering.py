@@ -199,16 +199,18 @@ class ArtworkClusterer:
         if reducer:
             self._embeddings = reducer.fit_transform(self._embeddings)
             self._reducer = reducer
-        if clusterer:
-            self._labels = clusterer.fit_predict(self._embeddings)
-
+        
+        inertia = None
+        self._labels = clusterer.fit_predict(self._embeddings)
+        if method == "kmeans":
+            inertia = clusterer.inertia_
         # Getting cluster representatives and interpretations        
         cluster_reprs = self._get_cluster_reprs(method, represent_with)
         interpretations = self._signify_clusters(cluster_reprs, n_terms)
 
         # Saving results
-        with open("data/results.pkl", "wb") as f:
-            data = (interpretations, self._labels)
+        with open("res/interp.pkl", "wb") as f:
+            data = (interpretations, self._labels, inertia)
             pickle.dump(data, f)
         self._visualize(self._labels)
     
@@ -300,5 +302,5 @@ class ArtworkClusterer:
         plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap="Spectral", s=2)
         plt.colorbar(label="Cluster label")
         plt.title("UMAP projection of the clustered embeddings")
-        plt.savefig("visual.png", dpi=300, bbox_inches="tight")
+        plt.savefig("res/visual.png", dpi=300, bbox_inches="tight")
         plt.close()
