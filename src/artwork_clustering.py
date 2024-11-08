@@ -196,6 +196,11 @@ class ArtworkClusterer:
                     perplexity=kwargs["perplexity"] if "perplexity" in kwargs else 30,
                     random_state=42
                 )
+            case "pca":
+                reducer = PCA(
+                    n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
+                    random_state=42
+                )
         if reducer:
             self._embeddings = reducer.fit_transform(self._embeddings)
             self._reducer = reducer
@@ -263,16 +268,17 @@ class ArtworkClusterer:
 
                 for group in self._groups_of_signifiers:
                     if len(group) > 0:
-                        signifiers = torch.cat([clip.tokenize(f"a {s} painting") for s in group]).to(device)
+                        signifiers = torch.cat([clip.tokenize(s) for _, s in group]).to(device)
                         signifiers = self._model.encode_text(signifiers)
                         signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
                         if self._reducer:
                             signifiers = self._reducer.transform(signifiers.cpu().numpy())
                             signifiers = torch.from_numpy(signifiers).float().to(device)
-                
+                        # Compute similarity
                         similarity = (100.0 * cluster_repr @ signifiers.t()).softmax(dim=-1)
+
                         values, indices = similarity.topk(min(n_terms, len(group)))
-                        interpretation = [(group[i], v.item()) for i, v in zip(indices, values)]
+                        interpretation = [(group[i][0], v.item()) for i, v in zip(indices, values)]
                         interpretations.append(interpretation)
 
                 cluster_interps.append(interpretations)
