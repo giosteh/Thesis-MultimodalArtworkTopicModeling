@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.cluster import KMeans, DBSCAN
+from sklearn.cluster import KMeans, DBSCAN, Birch
 from umap import UMAP
 
 from clip_finetuning import ImageCaptionDataset
@@ -180,6 +180,12 @@ class ArtworkClusterer:
                     eps=kwargs["eps"] if "eps" in kwargs else 0.2,
                     min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 20,
                     metric="cosine"
+                )
+            case "birch":
+                clusterer = Birch(
+                    n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
+                    threshold=kwargs["threshold"] if "threshold" in kwargs else 1.0,
+                    branching_factor=kwargs["branching_factor"] if "branching_factor" in kwargs else 150
                 )
         
         reducer = None
