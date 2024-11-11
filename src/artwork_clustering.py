@@ -136,6 +136,7 @@ class ArtworkClusterer:
         
         embeddings = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
         embeddings = np.vstack(embeddings.values)
+        # Normalizing
         X_torch = torch.from_numpy(embeddings).float()
         X_normalized = X_torch / X_torch.norm(dim=-1, keepdim=True)
         self._embeddings = X_normalized.cpu().numpy()
@@ -186,9 +187,11 @@ class ArtworkClusterer:
             case "umap":
                 reducer = UMAP(
                     n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
-                    n_neighbors=kwargs["n_neighbors"] if "n_neighbors" in kwargs else 15,
+                    n_neighbors=kwargs["n_neighbors"] if "n_neighbors" in kwargs else 30,
                     min_dist=kwargs["min_dist"] if "min_dist" in kwargs else .1,
-                    random_state=42
+                    metric="cosine",
+                    random_state=42,
+                    n_jobs=1
                 )
             case "tsne":
                 reducer = TSNE(
@@ -300,6 +303,7 @@ class ArtworkClusterer:
             n_neighbors=n_neighbors,
             min_dist=min_dist,
             random_state=42,
+            metric="cosine",
             n_jobs=1
         )
         embeddings_2d = reducer.fit_transform(self._embeddings)
