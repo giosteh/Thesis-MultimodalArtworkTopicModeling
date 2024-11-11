@@ -9,11 +9,12 @@ from torch.utils.data import DataLoader
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans, DBSCAN, Birch
+from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from umap import UMAP
 
 from clip_finetuning import ImageCaptionDataset
 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -139,10 +140,11 @@ class ArtworkClusterer:
         # Normalizing
         X_torch = torch.from_numpy(embeddings).float()
         X_normalized = X_torch / X_torch.norm(dim=-1, keepdim=True)
+
         self._embeddings = X_normalized.cpu().numpy()
         self._labels = None
-
         self._reducer = None
+
         with open(signifiers_path, "rb") as f:
             self._groups_of_signifiers = pickle.load(f) # List[List[str]]
     
@@ -222,11 +224,30 @@ class ArtworkClusterer:
         cluster_reprs = self._get_cluster_reprs(method, represent_with)
         interpretations = self._signify_clusters(cluster_reprs, n_terms)
 
+        stats = self._get_stats()
+        stats["inertia"] = inertia
         # Saving results
         with open("res/interp.pkl", "wb") as f:
-            data = (interpretations, self._labels, inertia)
+            data = {
+                "stats": stats,
+                "interpretations": interpretations
+            }
             pickle.dump(data, f)
         self._visualize(self._labels)
+    
+    def _get_stats(self) -> Dict[str, float]:
+        """
+        Gets the clustering statistics.
+
+        Returns:
+            Dict[str, float]: The clustering statistics.
+        """
+        return {
+            "labels": self._labels,
+            "sizes": np.bincount(self._labels[self._labels != -1]),
+            "silhouette": silhouette_score(self._embeddings, self._labels),
+            "calinski_harabasz": calinski_harabasz_score(self._embeddings, self._labels)
+        }
     
     def _get_cluster_reprs(self, clustering_method: str, mode: str) -> List[torch.Tensor]:
         """
