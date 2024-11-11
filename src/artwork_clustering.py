@@ -299,18 +299,31 @@ class ArtworkClusterer:
         Returns:
             None
         """
-        reducer = UMAP(
+        umap_reducer = UMAP(
             n_neighbors=n_neighbors,
             min_dist=min_dist,
             random_state=42,
             metric="cosine",
             n_jobs=1
         )
-        embeddings_2d = reducer.fit_transform(self._embeddings)
+        pca_reducer = PCA(
+            n_components=2,
+            random_state=42
+        )
 
+        embeddings2d_umap = umap_reducer.fit_transform(self._embeddings)
         plt.figure(figsize=(10, 7))
-        plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap="Spectral", s=2)
-        plt.colorbar(label="Cluster label")
-        plt.title("UMAP projection of the clustered embeddings")
-        plt.savefig("res/visual.png", dpi=300, bbox_inches="tight")
+        plt.scatter(embeddings2d_umap[:, 0], embeddings2d_umap[:, 1], c=labels, cmap="viridis", s=1.5)
+        plt.colorbar(label="Cluster labels")
+        plt.title("UMAP visualization")
+        plt.savefig("res/visual_umap.png", dpi=300, bbox_inches="tight")
+
+        embeddings2d_pca = pca_reducer.fit_transform(self._embeddings)
+        plt.figure(figsize=(10, 7))
+        plt.scatter(embeddings2d_pca[:, 0], embeddings2d_pca[:, 1], c=labels, cmap="viridis", s=1.5)
+        plt.colorbar(label="Cluster labels")
+        plt.title("PCA visualization")
+        plt.savefig("res/visual_pca.png", dpi=300, bbox_inches="tight")
+
+        # Close the plot
         plt.close()
