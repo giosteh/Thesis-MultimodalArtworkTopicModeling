@@ -6,8 +6,6 @@ import clip
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans, DBSCAN, Birch
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from umap import UMAP
@@ -20,6 +18,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import pickle
+import warnings
+
+# Ignoring warnings relative to model loading (FutureWarnings)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -143,34 +145,31 @@ class ArtworkClusterer:
 
         self._embeddings = X_normalized.cpu().numpy()
         self._labels = None
-        self._reducer = None
-
+        self._clusterer = None
         with open(signifiers_path, "rb") as f:
             self._groups_of_signifiers = pickle.load(f) # List[List[str]]
     
 
     def cluster(self,
                 method: str = "kmeans",
-                reduce_with: str = None,
                 represent_with: str = "centroid",
                 n_terms: int = 5,
                 **kwargs) -> None:
         """
-        Clusters the embeddings using the specified mode.
+        Clusters the embeddings using the specified method.
 
         Args:
             method (str): The clustering method to use. Defaults to "kmeans".
-            reduce_with (str): The method to use for dimensionality reduction. Defaults to None.
             represent_with (str): The method to use to represent the clusters. Defaults to "centroid".
             n_terms (int): The number of terms to use. Defaults to 5.
-
+        
         Returns:
             None
         """
-        clusterer = None
+        points = self._embeddings
         match method:
             case "kmeans":
-                clusterer = KMeans(
+                self._clusterer = KMeans(
                     n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
                     init="k-means++",
                     n_init=10,
@@ -178,62 +177,44 @@ class ArtworkClusterer:
                     random_state=42
                 )
             case "dbscan":
-                clusterer = DBSCAN(
+                self._clusterer = DBSCAN(
                     eps=kwargs["eps"] if "eps" in kwargs else 0.2,
                     min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 20,
                     metric="cosine"
                 )
             case "birch":
-                clusterer = Birch(
+                self._clusterer = Birch(
                     n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
                     threshold=kwargs["threshold"] if "threshold" in kwargs else 1.0,
-                    branching_factor=kwargs["branching_factor"] if "branching_factor" in kwargs else 150
+                    branching_factor=kwargs["branching_factor"] if "branching_factor" in kwargs else 200
                 )
-        
-        reducer = None
-        match reduce_with:
-            case "umap":
-                reducer = UMAP(
-                    n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
-                    n_neighbors=kwargs["n_neighbors"] if "n_neighbors" in kwargs else 30,
-                    min_dist=kwargs["min_dist"] if "min_dist" in kwargs else .1,
-                    metric="cosine",
-                    random_state=42,
-                    n_jobs=1
+            case "birch+kmeans":
+                birch = Birch(
+                    n_clusters=None,
+                    threshold=kwargs["threshold"] if "threshold" in kwargs else 0.5,
+                    branching_factor=kwargs["branching_factor"] if "branching_factor" in kwargs else 50
                 )
-            case "tsne":
-                reducer = TSNE(
-                    n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
-                    perplexity=kwargs["perplexity"] if "perplexity" in kwargs else 30,
+                birch.fit(points)
+                points = birch.subcluster_centers_
+                self._clusterer = KMeans(
+                    n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
+                    init="k-means++",
+                    n_init=10,
+                    max_iter=1000,
                     random_state=42
                 )
-            case "pca":
-                reducer = PCA(
-                    n_components=kwargs["n_components"] if "n_components" in kwargs else 2,
-                    random_state=42
-                )
-        if reducer:
-            self._embeddings = reducer.fit_transform(self._embeddings)
-            self._reducer = reducer
-        
-        inertia = None
-        self._labels = clusterer.fit_predict(self._embeddings)
-        if method == "kmeans":
-            inertia = clusterer.inertia_
-        # Getting cluster representatives and interpretations        
-        cluster_reprs = self._get_cluster_reprs(method, represent_with)
-        interpretations = self._signify_clusters(cluster_reprs, n_terms)
+        # Clustering & signification
+        self._labels = self._clusterer.fit_predict(points)
+        cluster_reprs = self._get_cluster_reprs(represent_with)
+        cluster_interps = self._signify_clusters(cluster_reprs, n_terms)
 
-        stats = self._get_stats()
-        stats["inertia"] = inertia
         # Saving results
-        with open("res/interp.pkl", "wb") as f:
+        with open(f"results/{method}.pkl", "wb") as f:
             data = {
-                "stats": stats,
-                "interpretations": interpretations
+                "interps": cluster_interps,
+                "stats": self._get_stats()
             }
             pickle.dump(data, f)
-        self._visualize(self._labels)
     
     def _get_stats(self) -> Dict[str, float]:
         """
@@ -246,10 +227,11 @@ class ArtworkClusterer:
             "labels": self._labels,
             "sizes": np.bincount(self._labels[self._labels != -1]),
             "silhouette": silhouette_score(self._embeddings, self._labels),
-            "calinski_harabasz": calinski_harabasz_score(self._embeddings, self._labels)
+            "calinski_harabasz": calinski_harabasz_score(self._embeddings, self._labels),
+            "inertia": self._clusterer.inertia_ if hasattr(self._clusterer, "inertia_") else None
         }
     
-    def _get_cluster_reprs(self, clustering_method: str, mode: str) -> List[torch.Tensor]:
+    def _get_cluster_reprs(self, mode: str) -> List[torch.Tensor]:
         """
         Gets the cluster representatives.
 
@@ -305,7 +287,7 @@ class ArtworkClusterer:
                             signifiers = self._reducer.transform(signifiers.cpu().numpy())
                             signifiers = torch.from_numpy(signifiers).float().to(device)
                         # Compute similarity
-                        similarity = (100.0 * cluster_repr @ signifiers.t()).softmax(dim=-1)
+                        similarity = 100.0 * cluster_repr @ signifiers.t()
 
                         values, indices = similarity.topk(min(n_terms, len(group)))
                         interpretation = [(group[i][0], v.item()) for i, v in zip(indices, values)]
@@ -314,43 +296,30 @@ class ArtworkClusterer:
                 cluster_interps.append(interpretations)
         return cluster_interps
     
-    def _visualize(self, labels: np.ndarray, n_neighbors: int = 50, min_dist: float = .1) -> None:
+    def _visualize_with_umap(self, method: str, n_neighbors: int = 15, min_dist: float = 0.1) -> None:
         """
-        Visualizes the clusters using UMAP.
+        Visualizes the clusters found by the model using UMAP.
 
         Args:
-            labels (np.ndarray): The labels.
-            n_neighbors (int): The number of neighbors to use for UMAP. Defaults to 50.
-            min_dist (float): The minimum distance to use for UMAP. Defaults to .1.
-
+            method (str): The clustering method used.
+            n_neighbors (int): The number of neighbors to use. Defaults to 15.
+            min_dist (float): The minimum distance to use. Defaults to 0.1.
+        
         Returns:
             None
         """
-        umap_reducer = UMAP(
+        reducer = UMAP(
             n_neighbors=n_neighbors,
             min_dist=min_dist,
-            random_state=42,
             metric="cosine",
+            random_state=42,
             n_jobs=1
         )
-        pca_reducer = PCA(
-            n_components=2,
-            random_state=42
-        )
-
-        embeddings2d_umap = umap_reducer.fit_transform(self._embeddings)
+        embeddings_reduced = reducer.fit_transform(self._embeddings)
+        # Visualizing
         plt.figure(figsize=(10, 7))
-        plt.scatter(embeddings2d_umap[:, 0], embeddings2d_umap[:, 1], c=labels, cmap="viridis", s=1.5)
-        plt.colorbar(label="Cluster labels")
-        plt.title("UMAP visualization")
-        plt.savefig("res/visual_umap.png", dpi=300, bbox_inches="tight")
-
-        embeddings2d_pca = pca_reducer.fit_transform(self._embeddings)
-        plt.figure(figsize=(10, 7))
-        plt.scatter(embeddings2d_pca[:, 0], embeddings2d_pca[:, 1], c=labels, cmap="viridis", s=1.5)
-        plt.colorbar(label="Cluster labels")
-        plt.title("PCA visualization")
-        plt.savefig("res/visual_pca.png", dpi=300, bbox_inches="tight")
-
-        # Close the plot
+        plt.scatter(embeddings_reduced[:, 0], embeddings_reduced[:, 1], c=self._labels, cmap="viridis", s=1.5, alpha=.7)
+        plt.title(f"Clusters found by {method} visualized with UMAP")
+        plt.colorbar(label="Cluster label")
+        plt.savefig(f"results/{method}.svg", format="svg", bbox_inches="tight")
         plt.close()
