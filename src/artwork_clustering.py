@@ -6,6 +6,7 @@ import clip
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from sklearn.model_selection import train_test_split
 from sklearn.cluster import KMeans, DBSCAN, Birch
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from umap import UMAP
@@ -142,12 +143,13 @@ class ArtworkClusterer:
         # Normalizing
         X_torch = torch.from_numpy(embeddings).float()
         X_normalized = X_torch / X_torch.norm(dim=-1, keepdim=True)
-
         self._embeddings = X_normalized.cpu().numpy()
+
         self._labels = None
         self._clusterer = None
+        self._cluster_interps = None
         with open(signifiers_path, "rb") as f:
-            self._groups_of_signifiers = pickle.load(f) # List[List[str]]
+            self._signifiers_groups = pickle.load(f) # List[List[str]]
     
 
     def cluster(self,
@@ -206,18 +208,18 @@ class ArtworkClusterer:
         # Clustering & signification
         self._labels = self._clusterer.fit_predict(points)
         cluster_reprs = self._get_cluster_reprs(represent_with)
-        cluster_interps = self._signify_clusters(cluster_reprs, n_terms)
+        self._cluster_interps = self._signify_clusters(cluster_reprs, n_terms)
         # Visualizing
         self._visualize_with_umap(method)
         # Saving results
         with open(f"results/{method}.pkl", "wb") as f:
             data = {
-                "interps": cluster_interps,
-                "stats": self._get_stats()
+                "interps": (self._cluster_interps, self._interps_stats()),
+                "stats": self._stats()
             }
             pickle.dump(data, f)
     
-    def _get_stats(self) -> Dict[str, float]:
+    def _stats(self) -> Dict[str, float]:
         """
         Gets the clustering statistics.
 
@@ -231,6 +233,49 @@ class ArtworkClusterer:
             "calinski_harabasz": calinski_harabasz_score(self._embeddings, self._labels),
             "inertia": self._clusterer.inertia_ if hasattr(self._clusterer, "inertia_") else None
         }
+    
+    def _interps_stats(self) -> Dict[str, List[float]]:
+        """
+        Gets the signification statistics, i.e. the average overlap between clusters.
+
+        Returns:
+            Dict[str, List[float]]: The signification statistics.
+        """
+        def avg_overlap_per_group(group_idx: int, cluster_idx: int) -> float:
+            """
+            Gets the average overlap between clusters for a specific group.
+
+            Args:
+                group_idx (int): The index of the group.
+                cluster_idx (int): The index of the cluster.
+
+            Returns:
+                float: The average overlap between clusters.
+            """
+            group_interp = self._cluster_interps[cluster_idx][group_idx]
+            group_terms, n_terms = set([t for t, _ in group_interp]), len(group_interp)
+            overlap = 0
+            for i, cluster_interp in enumerate(self._cluster_interps):
+                if i == cluster_idx:
+                    continue
+                same_group_terms = set([t for t, _ in cluster_interp[group_idx]])
+                overlap += len(same_group_terms.intersection(group_terms)) / n_terms
+            return overlap / (len(self._cluster_interps) - 1)
+        
+        stats = {
+            "avg_overlap_per_group": [],
+            "avg_overlap_per_cluster": [],
+            "overall_avg_per_group": []
+        }
+        for i in range(len(self._cluster_interps)):
+            stats["avg_overlap_per_group"].append([])
+            for j in range(len(self._signifiers_groups)):
+                stats["avg_overlap_per_group"][-1].append(avg_overlap_per_group(j, i))
+            stats["avg_overlap_per_cluster"].append(np.mean(stats["avg_overlap_per_group"][-1]))
+        
+        for j in range(len(self._signifiers_groups)):
+            stats["overall_avg_per_group"].append(np.mean([stats["avg_overlap_per_group"][i][j] for i in range(len(self._cluster_interps))]))
+        return stats
     
     def _get_cluster_reprs(self, mode: str) -> List[torch.Tensor]:
         """
@@ -261,25 +306,25 @@ class ArtworkClusterer:
                 cluster_reprs.append(torch.from_numpy(medoid).float())
         return cluster_reprs
     
-    def _signify_clusters(self, cluster_reprs: List[torch.Tensor], n_terms: int = 5) -> List[List[Tuple[str, float]]]:
+    def _signify_clusters(self, cluster_reprs: List[torch.Tensor], n_terms: int = 5) -> List[List[List[Tuple[str, float]]]]:
         """
         Signifies the clusters found by the model.
 
         Args:
             cluster_reprs (List[torch.Tensor]): The cluster representatives.
             n_terms (int): The number of terms to use. Defaults to 5.
-
+        
         Returns:
-            List[List[Tuple[str, float]]]: The interpretations.
+            List[List[List[Tuple[str, float]]]]: The cluster interpretations.
         """
         cluster_interps = []
 
         with torch.no_grad():
             for cluster_repr in cluster_reprs:
-                interpretations = []
+                cluster_interp = []
                 cluster_repr = cluster_repr.to(device)
 
-                for group in self._groups_of_signifiers:
+                for group in self._signifiers_groups:
                     if len(group) > 0:
                         signifiers = torch.cat([clip.tokenize(s) for _, s in group]).to(device)
                         signifiers = self._model.encode_text(signifiers)
@@ -288,36 +333,40 @@ class ArtworkClusterer:
                         similarity = 100.0 * cluster_repr @ signifiers.t()
 
                         values, indices = similarity.topk(min(n_terms, len(group)))
-                        interpretation = [(group[i][0], v.item()) for i, v in zip(indices, values)]
-                        interpretations.append(interpretation)
-
-                cluster_interps.append(interpretations)
+                        group_interp = [(group[i][0], v.item()) for i, v in zip(indices, values)]
+                        cluster_interp.append(group_interp)
+                cluster_interps.append(cluster_interp)
         return cluster_interps
     
-    def _visualize_with_umap(self, method: str, n_neighbors: int = 15, min_dist: float = 0.1) -> None:
+    def _visualize_with_umap(self, method: str) -> None:
         """
         Visualizes the clusters found by the model using UMAP.
 
         Args:
             method (str): The clustering method used.
-            n_neighbors (int): The number of neighbors to use. Defaults to 15.
-            min_dist (float): The minimum distance to use. Defaults to 0.1.
-        
+
         Returns:
             None
         """
         reducer = UMAP(
-            n_neighbors=n_neighbors,
-            min_dist=min_dist,
+            n_neighbors=5,
+            min_dist=.1,
+            spread=1.0,
             metric="cosine",
-            random_state=42,
-            n_jobs=1
+            random_state=42
         )
-        embeddings_reduced = reducer.fit_transform(self._embeddings)
-        # Visualizing
+        # Using all the data points
+        reduced_embeddings = reducer.fit_transform(self._embeddings)
         plt.figure(figsize=(10, 7))
-        plt.scatter(embeddings_reduced[:, 0], embeddings_reduced[:, 1], c=self._labels, cmap="viridis", s=1.5, alpha=.7)
-        plt.title(f"Clusters found by {method} visualized with UMAP")
-        plt.colorbar(label="Cluster label")
+        plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=self._labels, cmap="plasma", s=1.2, alpha=.6)
+        plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
+        plt.colorbar()
         plt.savefig(f"results/{method}.svg", format="svg", bbox_inches="tight")
-        plt.close()
+        # Using a stratified 20% sample
+        sample = train_test_split(self._embeddings, self._labels, test_size=.8, stratify=self._labels, random_state=42)
+        sampled_embeddings, sampled_labels = sample[0], sample[2]
+        plt.figure(figsize=(10, 7))
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="plasma", s=1.2, alpha=.6)
+        plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
+        plt.colorbar()
+        plt.savefig(f"results/{method}_sample.svg", format="svg", bbox_inches="tight")
