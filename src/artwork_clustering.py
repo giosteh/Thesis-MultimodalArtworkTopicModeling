@@ -207,7 +207,8 @@ class ArtworkClusterer:
         self._labels = self._clusterer.fit_predict(points)
         cluster_reprs = self._get_cluster_reprs(represent_with)
         cluster_interps = self._signify_clusters(cluster_reprs, n_terms)
-
+        # Visualizing
+        self._visualize_with_umap(method)
         # Saving results
         with open(f"results/{method}.pkl", "wb") as f:
             data = {
