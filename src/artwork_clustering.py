@@ -349,8 +349,8 @@ class ArtworkClusterer:
             None
         """
         reducer = UMAP(
-            n_neighbors=5,
-            min_dist=.1,
+            n_neighbors=7,
+            min_dist=.09,
             spread=1.0,
             metric="cosine",
             random_state=42
@@ -358,7 +358,7 @@ class ArtworkClusterer:
         # Using all the data points
         reduced_embeddings = reducer.fit_transform(self._embeddings)
         plt.figure(figsize=(10, 7))
-        plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=self._labels, cmap="plasma", s=1.2, alpha=.6)
+        plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=self._labels, cmap="plasma", s=1.5, alpha=.7)
         plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
         plt.colorbar()
         plt.savefig(f"results/{method}.svg", format="svg", bbox_inches="tight")
@@ -366,7 +366,7 @@ class ArtworkClusterer:
         sample = train_test_split(self._embeddings, self._labels, test_size=.8, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         plt.figure(figsize=(10, 7))
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="plasma", s=1.2, alpha=.6)
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="plasma", s=1.5, alpha=.7)
         plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
         plt.colorbar()
         plt.savefig(f"results/{method}_sample.svg", format="svg", bbox_inches="tight")
