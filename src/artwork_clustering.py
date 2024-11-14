@@ -283,9 +283,6 @@ class ArtworkClusterer:
                         signifiers = torch.cat([clip.tokenize(s) for _, s in group]).to(device)
                         signifiers = self._model.encode_text(signifiers)
                         signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
-                        if self._reducer:
-                            signifiers = self._reducer.transform(signifiers.cpu().numpy())
-                            signifiers = torch.from_numpy(signifiers).float().to(device)
                         # Compute similarity
                         similarity = 100.0 * cluster_repr @ signifiers.t()
 
