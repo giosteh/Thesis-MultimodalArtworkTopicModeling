@@ -124,9 +124,8 @@ class CLIPFinetuner:
         self._unfreeze_blocks(1)
         self._unfreeze_from = unfreeze_from
         self._unfreeze_every = unfreeze_every
-
+        # Training settings
         self._early_stopping = EarlyStopping(self._model)
-
         self._train_loader, self._val_loader = self._get_dataloaders(val_split, batch_size, augment)
         self._optimizer = optim.Adam(self._model.parameters(), lr=lr, betas=(0.9, 0.98), eps=1e-6, weight_decay=.2)
 
@@ -214,7 +213,7 @@ class CLIPFinetuner:
                 print(f"\nEpoch #{epoch+1}/{tot_epochs} |")
                 print(f"Train Loss: {train_loss:.4f}")
                 print(f"Val Loss: {val_loss:.4f}, Val CLIP Score: {val_score:.4f} |")
-            
+            # Checking for early stopping
             stop = self._early_stopping(train_loss, val_loss, val_score)
             if stop:
                 if verbose:
@@ -295,7 +294,7 @@ class CLIPFinetuner:
         with torch.no_grad():
             image_features = self._model.encode_image(images)
             text_features = self._model.encode_text(texts)
-
+        # Normalize and compute score
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         score = (image_features @ text_features.t()).diag().mean()
