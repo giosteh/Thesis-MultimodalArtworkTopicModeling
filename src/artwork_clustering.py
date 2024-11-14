@@ -363,7 +363,7 @@ class ArtworkClusterer:
         plt.colorbar()
         plt.savefig(f"results/{method}.svg", format="svg", bbox_inches="tight")
         # Using a stratified 20% sample
-        sample = train_test_split(self._embeddings, self._labels, test_size=.8, stratify=self._labels, random_state=42)
+        sample = train_test_split(reduced_embeddings, self._labels, test_size=.8, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         plt.figure(figsize=(10, 7))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="plasma", s=1.5, alpha=.7)
