@@ -174,7 +174,7 @@ class ArtworkClusterer:
                     n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
                     init="k-means++",
                     n_init=10,
-                    max_iter=1000,
+                    max_iter=10000,
                     random_state=42
                 )
             case "dbscan":
@@ -357,7 +357,7 @@ class ArtworkClusterer:
         # Using all the data points
         reduced_embeddings = reducer.fit_transform(self._embeddings)
         plt.figure(figsize=(10, 7))
-        plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=self._labels, cmap="plasma", s=1.8, alpha=.7)
+        plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=self._labels, cmap="turbo", s=2, alpha=.7)
         plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
         plt.colorbar()
         plt.savefig(f"results/{method}.svg", format="svg", bbox_inches="tight")
@@ -365,7 +365,7 @@ class ArtworkClusterer:
         sample = train_test_split(reduced_embeddings, self._labels, test_size=.8, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         plt.figure(figsize=(10, 7))
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="plasma", s=1.8, alpha=.7)
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="turbo", s=2, alpha=.7)
         plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
         plt.colorbar()
         plt.savefig(f"results/{method}_sample.svg", format="svg", bbox_inches="tight")
