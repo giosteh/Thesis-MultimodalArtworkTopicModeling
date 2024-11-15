@@ -281,7 +281,6 @@ class ArtworkClusterer:
         Gets the cluster representatives.
 
         Args:
-            clustering_method (str): The clustering method used ("centroid" or "medoid").
             mode (str): The mode to use to get the cluster representatives.
 
         Returns:
@@ -294,14 +293,13 @@ class ArtworkClusterer:
             mask = (self._labels == label)
             points = self._embeddings[mask]
 
-            centroid = np.mean(points, axis=0)
             if mode == "centroid":
+                centroid = np.mean(points, axis=0)
                 cluster_reprs.append(torch.from_numpy(centroid).float())
             else:
                 distances = cdist(points, points)
                 total_distances = np.sum(distances, axis=1)
                 medoid = points[total_distances.argmin()]
-
                 cluster_reprs.append(torch.from_numpy(medoid).float())
         return cluster_reprs
     
