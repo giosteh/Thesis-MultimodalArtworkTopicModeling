@@ -96,21 +96,19 @@ class EmbeddingDatasetBuilder:
                 image, text = data
                 image, text = image.to(device), clip.tokenize(text).to(device)
 
-                base_features = self._base_model.encode_image(image)
-                base_features = base_features.cpu().numpy().flatten()
-                finetuned_features = self._finetuned_model.encode_image(image)
-                finetuned_features = finetuned_features.cpu().numpy().flatten()
-
                 features["image_path"] = image_path
                 features["text"] = text
-                features["base_embedding"] = np.array2string(base_features, np.inf, separator=",")
-                features["finetuned_embedding"] = np.array2string(finetuned_features, np.inf, separator=",")
+                # Adding embeddings
+                image_embedding = self._finetuned_model.encode_image(image)
+                if self._use_base_model:
+                    image_embedding = self._base_model.encode_image(image)
+                image_embedding = image_embedding.cpu().numpy().flatten()
+                features["embedding"] = np.array2string(image_embedding, np.inf, separator=",")
 
                 rows.append(features)
-        
-        if self._use_base_model:
-            return pd.DataFrame(rows).rename(columns={"base_embedding": "embedding"})
-        return pd.DataFrame(rows).rename(columns={"finetuned_embedding": "embedding"})
+
+        return pd.DataFrame(rows)
+
 
 
 class ArtworkClusterer:
@@ -137,6 +135,7 @@ class ArtworkClusterer:
         self._model.eval()
         if model_path:
             self._model = load_model(base_model, model_path)
+            print(f"Model loaded from [{model_path}].")
         
         embeddings = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
         embeddings = np.vstack(embeddings.values)
@@ -358,7 +357,7 @@ class ArtworkClusterer:
         # Using all the data points
         reduced_embeddings = reducer.fit_transform(self._embeddings)
         plt.figure(figsize=(10, 7))
-        plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=self._labels, cmap="plasma", s=1.5, alpha=.7)
+        plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=self._labels, cmap="plasma", s=1.8, alpha=.7)
         plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
         plt.colorbar()
         plt.savefig(f"results/{method}.svg", format="svg", bbox_inches="tight")
@@ -366,7 +365,7 @@ class ArtworkClusterer:
         sample = train_test_split(reduced_embeddings, self._labels, test_size=.8, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         plt.figure(figsize=(10, 7))
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="plasma", s=1.5, alpha=.7)
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="plasma", s=1.8, alpha=.7)
         plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
         plt.colorbar()
         plt.savefig(f"results/{method}_sample.svg", format="svg", bbox_inches="tight")
