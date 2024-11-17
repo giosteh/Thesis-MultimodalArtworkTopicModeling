@@ -16,6 +16,7 @@ from clip_finetuning import ImageCaptionDataset
 from typing import List, Tuple, Dict
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D # For 3D visualization
 import pandas as pd
 import numpy as np
 import pickle
@@ -183,27 +184,6 @@ class ArtworkClusterer:
                     min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 20,
                     metric="cosine"
                 )
-            case "birch":
-                self._clusterer = Birch(
-                    n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
-                    threshold=kwargs["threshold"] if "threshold" in kwargs else 1.0,
-                    branching_factor=kwargs["branching_factor"] if "branching_factor" in kwargs else 200
-                )
-            case "birch+kmeans":
-                birch = Birch(
-                    n_clusters=None,
-                    threshold=kwargs["threshold"] if "threshold" in kwargs else 0.5,
-                    branching_factor=kwargs["branching_factor"] if "branching_factor" in kwargs else 50
-                )
-                birch.fit(points)
-                points = birch.subcluster_centers_
-                self._clusterer = KMeans(
-                    n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
-                    init="k-means++",
-                    n_init=10,
-                    max_iter=1000,
-                    random_state=42
-                )
         # Clustering & signification
         self._labels = self._clusterer.fit_predict(points)
         cluster_reprs = self._get_cluster_reprs(represent_with)
@@ -345,25 +325,52 @@ class ArtworkClusterer:
         Returns:
             None
         """
-        reducer = UMAP(
-            n_neighbors=7,
-            min_dist=.09,
-            spread=1.0,
+        # 2D visualization
+        reducer_2d = UMAP(
+            n_components=2,
+            n_neighbors=10,
+            min_dist=0.0,
+            spread=1.5,
             metric="cosine",
             random_state=42
         )
-        # Using all the data points
-        reduced_embeddings = reducer.fit_transform(self._embeddings)
+        embeddings_2d = reducer_2d.fit_transform(self._embeddings)
+        # Plotting a 20% stratified sample of the data points
+        sample = train_test_split(embeddings_2d, self._labels, test_size=.8, stratify=self._labels, random_state=42)
+        sampled_embeddings, sampled_labels = sample[0], sample[2]
+
         plt.figure(figsize=(10, 7))
-        plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], c=self._labels, cmap="turbo", s=2, alpha=.7)
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=4, alpha=.7)
         plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
         plt.colorbar()
         plt.savefig(f"results/{method}.svg", format="svg", bbox_inches="tight")
-        # Using a stratified 20% sample
-        sample = train_test_split(reduced_embeddings, self._labels, test_size=.8, stratify=self._labels, random_state=42)
+
+        # 3D visualization
+        reducer_3d = UMAP(
+            n_components=3,
+            n_neighbors=10,
+            min_dist=0.0,
+            spread=1.5,
+            metric="cosine",
+            random_state=42
+        )
+        embeddings_3d = reducer_3d.fit_transform(self._embeddings)
+        # Plotting a 20% stratified sample of the data points
+        sample = train_test_split(embeddings_3d, self._labels, test_size=.8, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
-        plt.figure(figsize=(10, 7))
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="turbo", s=2, alpha=.7)
-        plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
-        plt.colorbar()
-        plt.savefig(f"results/{method}_sample.svg", format="svg", bbox_inches="tight")
+
+        fig = plt.figure(figsize=(10, 7))
+        ax = fig.add_subplot(111, projection="3d")
+        scatter = ax.scatter(
+            sampled_embeddings[:, 0],
+            sampled_embeddings[:, 1],
+            sampled_embeddings[:, 2],
+            c=sampled_labels,
+            cmap="viridis",
+            s=4,
+            alpha=.7
+        )
+        ax.set_title(f"Clusters found by {method.upper()} visualized with UMAP")
+        fig.colorbar(scatter, ax=ax)
+        plt.savefig(f"results/{method}-3d.svg", format="svg", bbox_inches="tight")
+        plt.close()

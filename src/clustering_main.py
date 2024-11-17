@@ -20,8 +20,6 @@ if __name__ == "__main__":
     parser.add_argument("--n_clusters", type=int, default=10)
     parser.add_argument("--eps", type=float, default=0.2)
     parser.add_argument("--min_samples", type=int, default=20)
-    parser.add_argument("--threshold", type=float, default=1.0)
-    parser.add_argument("--branching_factor", type=int, default=150)
     parser.add_argument("--represent_with", type=str, default="centroid")
 
     args = parser.parse_args()
@@ -41,7 +39,5 @@ if __name__ == "__main__":
         n_terms=args.n_terms,
         n_clusters=args.n_clusters,
         eps=args.eps,
-        min_samples=args.min_samples,
-        threshold=args.threshold,
-        branching_factor=args.branching_factor
+        min_samples=args.min_samples
     )
