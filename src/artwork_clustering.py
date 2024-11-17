@@ -7,7 +7,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.cluster import KMeans, DBSCAN, Birch
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn_extra.cluster import KMedoids
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from umap import UMAP
 
@@ -178,11 +179,21 @@ class ArtworkClusterer:
                     max_iter=10000,
                     random_state=42
                 )
+            case "kmedoids":
+                self._clusterer = KMedoids(
+                    n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
+                    init="k-medoids++",
+                    metric="cosine",
+                    method="pam",
+                    max_iter=10000,
+                    random_state=42
+                )
             case "dbscan":
                 self._clusterer = DBSCAN(
                     eps=kwargs["eps"] if "eps" in kwargs else 0.2,
-                    min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 20,
-                    metric="cosine"
+                    min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 50,
+                    metric="cosine",
+                    n_jobs=-1
                 )
         # Clustering & signification
         self._labels = self._clusterer.fit_predict(points)
