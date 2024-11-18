@@ -100,7 +100,7 @@ class EmbeddingDatasetBuilder:
 
                 features["image_path"] = image_path
                 features["text"] = text
-                # Adding embeddings
+                # Adding image embedding
                 image_embedding = self._finetuned_model.encode_image(image)
                 if self._use_base_model:
                     image_embedding = self._base_model.encode_image(image)
@@ -128,9 +128,6 @@ class ArtworkClusterer:
             model_path (str): The path to the finetuned model. Defaults to None.
             dataset_path (str): The path to the embeddings csv. Defaults to "data/finetuned_embeddings.csv".
             signifiers_path (str): The path to the signifiers. Defaults to "data/signifiers.pkl".
-        
-        Returns:
-            None
         """
         self._model, _ = clip.load(base_model, device=device, jit=False)
         self._model.float()
@@ -329,7 +326,7 @@ class ArtworkClusterer:
     
     def _visualize_with_umap(self, method: str) -> None:
         """
-        Visualizes the clusters found by the model using UMAP.
+        Visualizes the clusters found by the model fitting UMAP on a 20% stratified sample of the embeddings.
 
         Args:
             method (str): The clustering method used.
@@ -347,7 +344,6 @@ class ArtworkClusterer:
             random_state=42
         )
         embeddings_2d = reducer_2d.fit_transform(self._embeddings)
-        # Plotting a 20% stratified sample of the data points
         sample = train_test_split(embeddings_2d, self._labels, test_size=.8, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
 
@@ -367,7 +363,6 @@ class ArtworkClusterer:
             random_state=42
         )
         embeddings_3d = reducer_3d.fit_transform(self._embeddings)
-        # Plotting a 20% stratified sample of the data points
         sample = train_test_split(embeddings_3d, self._labels, test_size=.8, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
 
