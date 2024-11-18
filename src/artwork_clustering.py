@@ -189,9 +189,8 @@ class ArtworkClusterer:
             case "dbscan":
                 self._clusterer = DBSCAN(
                     eps=kwargs["eps"] if "eps" in kwargs else 0.2,
-                    min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 50,
-                    metric="cosine",
-                    n_jobs=-1
+                    min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 128,
+                    metric="cosine"
                 )
         # Clustering & signification
         self._labels = self._clusterer.fit_predict(points)
@@ -202,7 +201,8 @@ class ArtworkClusterer:
         # Saving results
         with open(f"results/{method}.pkl", "wb") as f:
             data = {
-                "interps": (self._cluster_interps, self._interps_stats()),
+                "interps": self._cluster_interps,
+                "interps_stats": self._interps_stats(),
                 "stats": self._stats()
             }
             pickle.dump(data, f)
@@ -352,32 +352,4 @@ class ArtworkClusterer:
         plt.title(f"Clusters found by {method.upper()} visualized with UMAP")
         plt.colorbar()
         plt.savefig(f"results/{method}.svg", format="svg", bbox_inches="tight")
-
-        # 3D visualization
-        reducer_3d = UMAP(
-            n_components=3,
-            n_neighbors=10,
-            min_dist=0.0,
-            spread=1.5,
-            metric="cosine",
-            random_state=42
-        )
-        embeddings_3d = reducer_3d.fit_transform(self._embeddings)
-        sample = train_test_split(embeddings_3d, self._labels, test_size=.8, stratify=self._labels, random_state=42)
-        sampled_embeddings, sampled_labels = sample[0], sample[2]
-
-        fig = plt.figure(figsize=(10, 7))
-        ax = fig.add_subplot(111, projection="3d")
-        scatter = ax.scatter(
-            sampled_embeddings[:, 0],
-            sampled_embeddings[:, 1],
-            sampled_embeddings[:, 2],
-            c=sampled_labels,
-            cmap="viridis",
-            s=4,
-            alpha=.7
-        )
-        ax.set_title(f"Clusters found by {method.upper()} visualized with UMAP")
-        fig.colorbar(scatter, ax=ax)
-        plt.savefig(f"results/{method}-3d.svg", format="svg", bbox_inches="tight")
         plt.close()
