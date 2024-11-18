@@ -126,7 +126,7 @@ class ArtworkClusterer:
         Args:
             base_model (str): The base model to use. Defaults to "ViT-B/32".
             model_path (str): The path to the finetuned model. Defaults to None.
-            dataset_path (str): The path to the embeddings dataset. Defaults to "data/finetuned_embeddings.csv".
+            dataset_path (str): The path to the embeddings csv. Defaults to "data/finetuned_embeddings.csv".
             signifiers_path (str): The path to the signifiers. Defaults to "data/signifiers.pkl".
         
         Returns:
