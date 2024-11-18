@@ -118,7 +118,7 @@ class ArtworkClusterer:
     def __init__(self,
                  base_model: str = "ViT-B/32",
                  model_path: str = None,
-                 dataset: pd.DataFrame = EmbeddingDatasetBuilder()(),
+                 dataset_path: str = "data/finetuned_embeddings.csv",
                  signifiers_path: str = "data/signifiers.pkl") -> None:
         """
         Initializes the ArtworkClusterer.
@@ -126,7 +126,7 @@ class ArtworkClusterer:
         Args:
             base_model (str): The base model to use. Defaults to "ViT-B/32".
             model_path (str): The path to the finetuned model. Defaults to None.
-            dataset (pd.DataFrame): The dataset. Defaults to EmbeddingDatasetBuilder()().
+            dataset_path (str): The path to the embeddings dataset. Defaults to "data/finetuned_embeddings.csv".
             signifiers_path (str): The path to the signifiers. Defaults to "data/signifiers.pkl".
         
         Returns:
@@ -138,7 +138,8 @@ class ArtworkClusterer:
         if model_path:
             self._model = load_model(base_model, model_path)
             print(f"Model loaded from [{model_path}].")
-        
+        # Loading embeddings
+        dataset = pd.read_csv(dataset_path)
         embeddings = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
         embeddings = np.vstack(embeddings.values)
         # Normalizing

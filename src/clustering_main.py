@@ -24,11 +24,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    df = pd.read_csv(args.dataset)
     # 1. initialize the clusterer
     clusterer = ArtworkClusterer(
         model_path=args.finetuned_model,
-        dataset=df,
+        dataset_path=args.dataset,
         signifiers_path=args.signifiers
     )
 
