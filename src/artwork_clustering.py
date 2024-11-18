@@ -288,7 +288,7 @@ class ArtworkClusterer:
                 centroid = np.mean(points, axis=0)
                 cluster_reprs.append(torch.from_numpy(centroid).float())
             else:
-                distances = cdist(points, points)
+                distances = cdist(points, points, metric="cosine")
                 total_distances = np.sum(distances, axis=1)
                 medoid = points[total_distances.argmin()]
                 cluster_reprs.append(torch.from_numpy(medoid).float())
