@@ -31,7 +31,7 @@ class ImageCaptionDataset(Dataset):
                  images_dir: str = "data/images/imagesf2",
                  captions_file_path: str = "data/artwork_captions.txt",
                  apply_augmentations: bool = False,
-                 raw_only: bool = False) -> None:
+                 path_only: bool = False) -> None:
         """
         Initializes the ImageTextDataset.
 
@@ -39,10 +39,10 @@ class ImageCaptionDataset(Dataset):
             images_dir (str): The directory containing the images. Defaults to "images/imagesf2".
             captions_file (str): The file containing the captions. Defaults to "artwork_captions.txt".
             apply_augmentations (bool): Whether to apply augmentations. Defaults to False.
-            raw_only (bool): Whether to only return the image path and text. Defaults to False.
+            path_only (bool): Whether to only return the image path and text. Defaults to False.
         """
         self.apply_augmentations = apply_augmentations
-        self._raw_only = raw_only
+        self._path_only = path_only
         self._images_dir = images_dir
 
         _, self._clip_preprocess = clip.load("ViT-B/32", device=device, jit=False)
@@ -75,10 +75,10 @@ class ImageCaptionDataset(Dataset):
         """
         image_path, text = self._image_caption_pairs[idx]
         image_path = os.path.join(self._images_dir, image_path)
-        if self._raw_only:
+        if self._path_only:
             return image_path, text
         image = Image.open(image_path).convert("RGB")
-
+        # Apply augmentations
         if self.apply_augmentations:
             image = self._image_augmenter(image)
             text = self._text_augmenter(text)
@@ -184,7 +184,6 @@ class CLIPFinetuner:
         train_dataset, val_dataset = random_split(self._dataset, [train_size, val_size])
 
         train_dataset.dataset.apply_augmentations = apply_augmentations
-
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
@@ -208,7 +207,6 @@ class CLIPFinetuner:
             val_loss, val_score = self._validate()
 
             self._save_model(epoch)
-
             if verbose:
                 print(f"\nEpoch #{epoch+1}/{tot_epochs} |")
                 print(f"Train Loss: {train_loss:.4f}")
@@ -309,7 +307,6 @@ class CLIPFinetuner:
             float: The average training loss.
         """
         self._model.train()
-
         total_loss = .0
 
         for images, texts in self._train_loader:
@@ -340,7 +337,6 @@ class CLIPFinetuner:
             Tuple[float, float]: The average validation loss and score.
         """
         self._model.eval()
-
         total_loss = .0
         total_score = .0
 
