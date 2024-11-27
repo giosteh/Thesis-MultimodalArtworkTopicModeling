@@ -131,26 +131,27 @@ class Explainer:
             List[float]: The similarity between the explanations.
         """
         similarities = []
-        # Iterating over the explanations
-        for i, explanation in enumerate(self._explanations):
+        explanations = []
+        for explanation in self._explanations:
             explanation = clip.tokenize(explanation).to(device)
             explanation = self._model.encode_text(explanation)
             explanation = explanation / explanation.norm(dim=-1, keepdim=True)
-
+            explanations.append(explanation)
+        
+        # Iterating over the explanations
+        for i, explanation in enumerate(explanations):
             total_sim = 0
             # Iterating over the other explanations
-            for j, other_explanation in enumerate(self._explanations):
+            for j, other_explanation in enumerate(explanations):
                 if i == j:
                     continue
-                other_explanation = clip.tokenize(other_explanation).to(device)
-                other_explanation = self._model.encode_text(other_explanation)
-                other_explanation = other_explanation / other_explanation.norm(dim=-1, keepdim=True)
                 # Computing the cosine similarity
                 similarity = 100.0 * explanation @ other_explanation.t()
                 total_sim += similarity.item()
-
             similarities.append(total_sim / (len(self._explanations) - 1))
         return similarities
+
+
 
 
 
