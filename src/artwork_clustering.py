@@ -41,6 +41,11 @@ def load_model(base_model: str, model_path: str) -> nn.Module:
         nn.Module: The finetuned model.
     """
     model, _ = clip.load(base_model, device=device, jit=False)
+    if not model_path:
+        model.float()
+        model.eval()
+        return model
+    # Loading a finetuned version
     checkpoint = torch.load(model_path)
     model.load_state_dict(checkpoint)
     model.float()
@@ -125,13 +130,10 @@ class ArtworkClusterer:
             dataset_path (str): The path to the embeddings csv. Defaults to "data/finetuned_embeddings.csv".
             signifiers_path (str): The path to the signifiers. Defaults to "data/signifiers.pkl".
         """
-        self._model, _ = clip.load(base_model, device=device, jit=False)
-        self._model.float()
-        self._model.eval()
+        self._model = load_model(base_model, model_path)
         if model_path:
-            self._model = load_model(base_model, model_path)
             print(f"Model loaded from [{model_path}].")
-        # Loading embeddings
+        # Loading the embeddings
         dataset = pd.read_csv(dataset_path)
         embeddings = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
         embeddings = np.vstack(embeddings.values)
@@ -152,7 +154,7 @@ class ArtworkClusterer:
     def cluster(self,
                 method: str = "kmeans",
                 n_terms: int = 5,
-                **kwargs) -> None:
+                **kwds) -> None:
         """
         Clusters the embeddings using the specified method.
 
@@ -166,7 +168,7 @@ class ArtworkClusterer:
         match method:
             case "kmeans":
                 self._clusterer = KMeans(
-                    n_clusters=kwargs["n_clusters"] if "n_clusters" in kwargs else 10,
+                    n_clusters=kwds["n_clusters"] if "n_clusters" in kwds else 10,
                     init="k-means++",
                     n_init=10,
                     max_iter=10000,
@@ -174,8 +176,8 @@ class ArtworkClusterer:
                 )
             case "dbscan":
                 self._clusterer = DBSCAN(
-                    eps=kwargs["eps"] if "eps" in kwargs else .2,
-                    min_samples=kwargs["min_samples"] if "min_samples" in kwargs else 128,
+                    eps=kwds["eps"] if "eps" in kwds else .2,
+                    min_samples=kwds["min_samples"] if "min_samples" in kwds else 128,
                     metric="cosine"
                 )
         # Fitting the model
