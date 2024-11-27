@@ -13,8 +13,7 @@ from umap import UMAP
 
 from clip_finetuning import ImageCaptionDataset
 
-from typing import List, Tuple, Dict
-from scipy.spatial.distance import cdist
+from typing import List, Dict
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
