@@ -230,7 +230,7 @@ class ArtworkClusterer:
             group_interp = self._interps[cluster_idx][group_idx]
             group_terms, n_terms = set([t for t, _ in group_interp]), len(group_interp)
             overlap = 0
-            for i, interp in enumerate(n_clusters):
+            for i, interp in enumerate(self._interps):
                 if i == cluster_idx:
                     continue
                 same_group_terms = set([t for t, _ in interp[group_idx]])
