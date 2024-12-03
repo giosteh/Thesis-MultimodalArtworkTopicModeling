@@ -227,13 +227,13 @@ class ArtworkClusterer:
             Returns:
                 float: The average overlap between clusters.
             """
-            group_interp = self._cluster_interps[cluster_idx][group_idx]
+            group_interp = self._interps[cluster_idx][group_idx]
             group_terms, n_terms = set([t for t, _ in group_interp]), len(group_interp)
             overlap = 0
-            for i, cluster_interp in enumerate(n_clusters):
+            for i, interp in enumerate(n_clusters):
                 if i == cluster_idx:
                     continue
-                same_group_terms = set([t for t, _ in cluster_interp[group_idx]])
+                same_group_terms = set([t for t, _ in interp[group_idx]])
                 overlap += len(same_group_terms.intersection(group_terms)) / n_terms
             return overlap / (n_clusters - 1)
         
@@ -241,7 +241,7 @@ class ArtworkClusterer:
             "avg_overlap_per_group": [],
             "avg_overlap_per_cluster": []
         }
-        n_clusters, n_groups = len(self._cluster_interps), len(self._signifiers_groups)
+        n_clusters, n_groups = len(self._interps), len(self._signifiers_groups)
         overlaps = np.zeros((n_clusters, n_groups))
         for i in range(n_clusters):
             for j in range(n_groups):
