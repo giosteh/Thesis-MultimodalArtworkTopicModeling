@@ -311,11 +311,11 @@ class ArtworkClusterer:
             random_state=42
         )
         embeddings = reducer.fit_transform(self._embeddings)
-        sample = train_test_split(embeddings, self._labels, train_size=.01, stratify=self._labels, random_state=42)
+        sample = train_test_split(embeddings, self._labels, train_size=.03, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         # Plotting
         plt.figure(figsize=(10, 10))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=5, alpha=.8)
         plt.title(f"Embedding Space clustered with {method.upper()}")
-        plt.savefig(f"results/{method}.svg", format="svg")
+        plt.savefig(f"results/{method}.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
