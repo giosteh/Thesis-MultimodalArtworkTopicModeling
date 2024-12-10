@@ -57,7 +57,6 @@ def create_cluster_explainer() -> None:
         model="cluster-explainer",
         modelfile=configuration
     )
-create_cluster_explainer()
 
 
 class Explainer:
@@ -74,6 +73,7 @@ class Explainer:
             model_path (str): The path to the finetuned model. Defaults to "models/finetuned-v2.pt".
             groups (List[str]): The groups to explain. Defaults to ["GENRE", "TOPIC", "MEDIA", "STYLE"].
         """
+        create_cluster_explainer()
         self._model = load_model(base_model, model_path)
         self._groups = groups
     
