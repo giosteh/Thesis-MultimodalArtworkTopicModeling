@@ -43,6 +43,7 @@ A vanitas still life painting blending allegorical symbolism, depicting flowers,
 [INST]
 From now on, your output must be a single, short description that merges the most relevant terms from all four lists into a concise and cohesive sentence.
 Do not add any additional details, context, or narrative beyond the given terms. The output must be a single description that integrates all the lists organically.
+[/INST]
 '''
 """
 
