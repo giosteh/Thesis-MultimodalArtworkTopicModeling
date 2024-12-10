@@ -281,7 +281,7 @@ class ArtworkClusterer:
                 centroid = torch.from_numpy(centroid).float().to(device)
                 # Iterating over the groups
                 for group in self._signifiers_groups:
-                    signifiers = torch.cat([clip.tokenize(s) for _, s in group]).to(device)
+                    signifiers = clip.tokenize([s for _, s in group]).to(device)
                     signifiers = self._model.encode_text(signifiers)
                     signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
                     # Computing the cosine similarity

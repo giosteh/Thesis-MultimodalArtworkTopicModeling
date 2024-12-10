@@ -24,9 +24,25 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 configuration = """
 FROM mistral
 SYSTEM '''
-The user will provide a prompt containing four ordered list of terms describing a cluster of artworks.
-The lists are the following: GENRE, TOPIC, MEDIA and STYLE. The terms in each list are ordered from most to least relevant for the cluster.
-Provide a concise and organic description which will best explain the cluster using the given terms.
+<s>
+[INST]
+The user will provide four ordered lists of terms describing a cluster of artworks: GENRE, TOPIC, MEDIA, and STYLE.
+Each list is ordered from most to least relevant for the cluster. Your task is to generate a single, short description that merges the most relevant terms from all four lists into a concise and cohesive sentence.
+Do not add any additional details, context, or narrative beyond the given terms. The output must be a single description that integrates all the lists organically.
+
+For instance:
+GENRE: vanitas, allegorical, still life,
+TOPIC: flowers, fruits, vegetables,
+MEDIA: tempera, oil, pastel,
+STYLE: classical, symbolism, abstract,
+
+Output:
+A vanitas still life painting blending allegorical symbolism, depicting flowers, fruits, and vegetables in oil and tempera, combining classical and symbolism styles.
+[/INST]
+</s>
+[INST]
+From now on, your output must be a single, short description that merges the most relevant terms from all four lists into a concise and cohesive sentence.
+Do not add any additional details, context, or narrative beyond the given terms. The output must be a single description that integrates all the lists organically.
 '''
 """
 
@@ -41,6 +57,7 @@ def create_cluster_explainer() -> None:
         model="cluster-explainer",
         modelfile=configuration
     )
+create_cluster_explainer()
 
 
 class Explainer:
@@ -57,7 +74,6 @@ class Explainer:
             model_path (str): The path to the finetuned model. Defaults to "models/finetuned-v2.pt".
             groups (List[str]): The groups to explain. Defaults to ["GENRE", "TOPIC", "MEDIA", "STYLE"].
         """
-        create_cluster_explainer()
         self._model = load_model(base_model, model_path)
         self._groups = groups
     
@@ -96,11 +112,9 @@ class Explainer:
         """
         prompt = ""
 
-        for group, terms in zip(self._groups, interp):
-            prompt += f"{group}:\n"
-            for term, score in terms:
-                prompt += f"- {term} (score: {score:.2f})\n"
-            prompt += "\n"
+        for group_name, group in zip(self._groups, interp):
+            terms = [term for term, _ in group]
+            prompt += f"{group_name}: {', '.join(terms)}\n"
         
         return prompt
     
@@ -130,28 +144,16 @@ class Explainer:
         Returns:
             List[float]: The similarity between the explanations.
         """
-        similarities = []
-        explanations = []
-        for explanation in self._explanations:
-            explanation = clip.tokenize(explanation).to(device)
-            explanation = self._model.encode_text(explanation)
-            explanation = explanation / explanation.norm(dim=-1, keepdim=True)
-            explanations.append(explanation)
-        
-        # Iterating over the explanations
-        for i, explanation in enumerate(explanations):
-            total_sim = 0
-            # Iterating over the other explanations
-            for j, other_explanation in enumerate(explanations):
-                if i == j:
-                    continue
-                # Computing the cosine similarity
-                similarity = 100.0 * explanation @ other_explanation.t()
-                total_sim += similarity.item()
-            similarities.append(total_sim / (len(self._explanations) - 1))
+        with torch.no_grad():
+            explanations = clip.tokenize(self._explanations).to(device)
+            explanations = self._model.encode_text(explanations)
+            explanations = explanations / explanations.norm(dim=-1, keepdim=True)
+            
+            # Computing the cosine similarity
+            similarity = (100.0 * explanations @ explanations.t()).fill_diagonal_(0.0)
+            similarities = similarity.sum(dim=-1) / (len(self._explanations) - 1)
+
         return similarities
-
-
 
 
 
