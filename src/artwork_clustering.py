@@ -15,9 +15,11 @@ from clip_finetuning import ImageCaptionDataset
 
 from typing import List, Dict
 import matplotlib.pyplot as plt
+from PIL import Image
 import pandas as pd
 import numpy as np
 import pickle
+import argparse
 import warnings
 
 # Setting some things up
@@ -100,7 +102,7 @@ class EmbeddingDatasetBuilder:
                 image, text = data
                 image, text = image.to(device), clip.tokenize(text).to(device)
 
-                features["image_path"] = image_path
+                features["image_path"] = image_path.strip(",'()")
                 features["text"] = text
                 # Adding the image embedding
                 image_embedding = self._finetuned_model.encode_image(image)
@@ -133,9 +135,9 @@ class ArtworkClusterer:
         self._model = load_model(base_model, model_path)
         if model_path:
             print(f"Model loaded from [{model_path}].")
-        # Loading the embeddings
-        dataset = pd.read_csv(dataset_path)
-        embeddings = dataset["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
+        # Loading the dataset
+        self._df = pd.read_csv(dataset_path)
+        embeddings = self._df["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
         embeddings = np.vstack(embeddings.values)
         # Normalizing
         X_torch = torch.from_numpy(embeddings).float()
@@ -186,12 +188,15 @@ class ArtworkClusterer:
         self._signify_clusters(n_terms=n_terms)
 
         # Saving stats and interps
-        with open(f"results/{method}.pkl", "wb") as f:
+        n_clusters = len(self._centroids)
+        with open(f"results/{method}{n_clusters}.pkl", "wb") as f:
             pickle.dump({
                 "stats": self._stats(),
                 "interps": self._interps,
                 "interps_stats": self._interps_stats()
             }, f)
+        # Visualizing
+        self._visualize_clusters(method, n_samples=20)
         self._visualize_embedding_space(method)
 
     def _stats(self) -> Dict[str, float]:
@@ -293,12 +298,41 @@ class ArtworkClusterer:
 
                 self._interps.append(interp)
     
+    def _visualize_clusters(self, method: str, n_samples: int = 20) -> None:
+        """
+        Visualizes a sample of the clusters found.
+
+        Args:
+            method (str): The name of the clustering method.
+            n_samples (int): The number of samples to use.
+
+        Returns:
+            None
+        """
+        n_clusters = len(self._centroids)
+        self._df["cluster"] = self._labels
+
+        for cluster_label, cluster_df in self._df.groupby("cluster"):
+            sample_images = cluster_df["image_path"].sample(n_samples, random_state=42)
+            # Plotting
+            fig, axes = plt.subplots(n_clusters // 5, 5, figsize=(15, 12))
+            fig.suptitle(f"Cluster {cluster_label+1}")
+            axes = axes.flatten()
+            for ax, image_path in zip(axes, sample_images):
+                ax.imshow(Image.open(image_path))
+                ax.axis("off")
+
+            plt.tight_layout()
+            path = f"results/{method}{n_clusters}_cluster_{cluster_label+1}.png"
+            plt.savefig(path, format="png", dpi=300, bbox_inches="tight")
+            plt.close()
+    
     def _visualize_embedding_space(self, method: str) -> None:
         """
         Visualizes the embedding space.
 
         Args:
-            method (str): The clustering method to use.
+            method (str): The name of the clustering method.
 
         Returns:
             None
@@ -311,11 +345,49 @@ class ArtworkClusterer:
             random_state=42
         )
         embeddings = reducer.fit_transform(self._embeddings)
-        sample = train_test_split(embeddings, self._labels, train_size=.03, stratify=self._labels, random_state=42)
+        sample = train_test_split(embeddings, self._labels, train_size=3000, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         # Plotting
+        n_clusters = len(self._centroids)
         plt.figure(figsize=(10, 10))
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=5, alpha=.8)
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=20, alpha=.8)
+
         plt.title(f"Embedding Space clustered with {method.upper()}")
-        plt.savefig(f"results/{method}.png", format="png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"results/{method}{n_clusters}.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
+
+
+
+if __name__ == "__main__":
+    # command line arguments
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument("--finetuned_model", type=str, default="models/finetuned-v2.pt")
+    parser.add_argument("--dataset", type=str, default="data/finetuned_embeddings.csv")
+    parser.add_argument("--signifiers", type=str, default="data/signifiers.pkl")
+    parser.add_argument("--method", type=str, default="kmeans")
+    parser.add_argument("--n_terms", type=int, default=5)
+
+    parser.add_argument("--n_clusters", type=int, default=10)
+    parser.add_argument("--eps", type=float, default=0.1)
+    parser.add_argument("--min_samples", type=int, default=128)
+    parser.add_argument("--represent_with", type=str, default="centroid")
+
+    args = parser.parse_args()
+
+    # 1. initialize the clusterer
+    clusterer = ArtworkClusterer(
+        model_path=args.finetuned_model,
+        dataset_path=args.dataset,
+        signifiers_path=args.signifiers
+    )
+
+    # 2. perform clustering
+    clusterer.cluster(
+        method=args.method,
+        represent_with=args.represent_with,
+        n_terms=args.n_terms,
+        n_clusters=args.n_clusters,
+        eps=args.eps,
+        min_samples=args.min_samples
+    )
