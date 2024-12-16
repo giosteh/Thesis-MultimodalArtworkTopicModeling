@@ -189,15 +189,16 @@ class ArtworkClusterer:
 
         # Saving stats and interps
         n_clusters = len(self._centroids)
-        with open(f"results/{method}{n_clusters}.pkl", "wb") as f:
+        path = f"results/{method}{n_clusters}"
+        with open(f"{path}.pkl", "wb") as f:
             pickle.dump({
                 "stats": self._stats(),
                 "interps": self._interps,
                 "interps_stats": self._interps_stats()
             }, f)
         # Visualizing
-        self._visualize_clusters(method, n_samples=20)
-        self._visualize_embedding_space(method)
+        self._visualize_clusters(method, 20, path)
+        self._visualize_embedding_space(method, path)
 
     def _stats(self) -> Dict[str, float]:
         """
@@ -298,24 +299,24 @@ class ArtworkClusterer:
 
                 self._interps.append(interp)
     
-    def _visualize_clusters(self, method: str, n_samples: int = 20) -> None:
+    def _visualize_clusters(self, method: str, n_samples: int, path: str) -> None:
         """
         Visualizes a sample of the clusters found.
 
         Args:
             method (str): The name of the clustering method.
             n_samples (int): The number of samples to use.
+            path (str): The path to save the images.
 
         Returns:
             None
         """
-        n_clusters = len(self._centroids)
         self._df["cluster"] = self._labels
 
         for cluster_label, cluster_df in self._df.groupby("cluster"):
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=42)
             # Plotting & saving
-            fig, axes = plt.subplots(n_clusters // 5, 5, figsize=(15, 12))
+            fig, axes = plt.subplots(n_samples // 5, 5, figsize=(15, 12))
             fig.suptitle(f"Cluster {cluster_label+1}")
             axes = axes.flatten()
             for ax, image_path in zip(axes, sample_images):
@@ -323,16 +324,16 @@ class ArtworkClusterer:
                 ax.axis("off")
             
             plt.tight_layout()
-            path = f"results/{method}{n_clusters}_cluster_{cluster_label+1}.png"
-            plt.savefig(path, format="png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{path}_cluster{cluster_label+1}.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
     
-    def _visualize_embedding_space(self, method: str) -> None:
+    def _visualize_embedding_space(self, method: str, path: str) -> None:
         """
         Visualizes the embedding space.
 
         Args:
             method (str): The name of the clustering method.
+            path (str): The path to save the image.
 
         Returns:
             None
@@ -349,12 +350,11 @@ class ArtworkClusterer:
         sample = train_test_split(embeddings, self._labels, train_size=1000, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         # Plotting & saving
-        n_clusters = len(self._centroids)
         plt.figure(figsize=(10, 10))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=25, alpha=.8)
 
         plt.title(f"Embedding Space clustered with {method.upper()}")
-        plt.savefig(f"results/{method}{n_clusters}.png", format="png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{path}.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
 
 
