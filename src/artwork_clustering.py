@@ -314,14 +314,14 @@ class ArtworkClusterer:
 
         for cluster_label, cluster_df in self._df.groupby("cluster"):
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=42)
-            # Plotting
+            # Plotting & saving
             fig, axes = plt.subplots(n_clusters // 5, 5, figsize=(15, 12))
             fig.suptitle(f"Cluster {cluster_label+1}")
             axes = axes.flatten()
             for ax, image_path in zip(axes, sample_images):
                 ax.imshow(Image.open(image_path))
                 ax.axis("off")
-
+            
             plt.tight_layout()
             path = f"results/{method}{n_clusters}_cluster_{cluster_label+1}.png"
             plt.savefig(path, format="png", dpi=300, bbox_inches="tight")
@@ -345,12 +345,13 @@ class ArtworkClusterer:
             random_state=42
         )
         embeddings = reducer.fit_transform(self._embeddings)
-        sample = train_test_split(embeddings, self._labels, train_size=3000, stratify=self._labels, random_state=42)
+        
+        sample = train_test_split(embeddings, self._labels, train_size=1000, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
-        # Plotting
+        # Plotting & saving
         n_clusters = len(self._centroids)
         plt.figure(figsize=(10, 10))
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=20, alpha=.8)
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=25, alpha=.8)
 
         plt.title(f"Embedding Space clustered with {method.upper()}")
         plt.savefig(f"results/{method}{n_clusters}.png", format="png", dpi=300, bbox_inches="tight")
