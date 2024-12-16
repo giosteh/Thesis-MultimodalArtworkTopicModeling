@@ -197,8 +197,8 @@ class ArtworkClusterer:
                 "interps_stats": self._interps_stats()
             }, f)
         # Visualizing
-        self._visualize_clusters(method, 20, path)
-        self._visualize_embedding_space(method, path)
+        self._visualize_embedding_space(path)
+        self._visualize_clusters(path, n_samples=20)
 
     def _stats(self) -> Dict[str, float]:
         """
@@ -299,14 +299,13 @@ class ArtworkClusterer:
 
                 self._interps.append(interp)
     
-    def _visualize_clusters(self, method: str, n_samples: int, path: str) -> None:
+    def _visualize_clusters(self, path: str, n_samples: int) -> None:
         """
         Visualizes a sample of the clusters found.
 
         Args:
-            method (str): The name of the clustering method.
-            n_samples (int): The number of samples to use.
-            path (str): The path to save the images.
+            path (str): The path to save the image.
+            n_samples (int): The number of samples to plot.
 
         Returns:
             None
@@ -327,12 +326,11 @@ class ArtworkClusterer:
             plt.savefig(f"{path}_cluster{cluster_label+1}.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
     
-    def _visualize_embedding_space(self, method: str, path: str) -> None:
+    def _visualize_embedding_space(self, path: str) -> None:
         """
         Visualizes the embedding space.
 
         Args:
-            method (str): The name of the clustering method.
             path (str): The path to save the image.
 
         Returns:
@@ -351,9 +349,9 @@ class ArtworkClusterer:
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         # Plotting & saving
         plt.figure(figsize=(10, 10))
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=25, alpha=.8)
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=40, alpha=.8)
 
-        plt.title(f"Embedding Space clustered with {method.upper()}")
+        plt.title("Artwork Embedding Space")
         plt.savefig(f"{path}.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
 
@@ -372,7 +370,6 @@ if __name__ == "__main__":
     parser.add_argument("--n_clusters", type=int, default=10)
     parser.add_argument("--eps", type=float, default=0.1)
     parser.add_argument("--min_samples", type=int, default=128)
-    parser.add_argument("--represent_with", type=str, default="centroid")
 
     args = parser.parse_args()
 
