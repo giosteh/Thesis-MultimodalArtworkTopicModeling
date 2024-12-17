@@ -186,7 +186,7 @@ class ArtworkClusterer:
 
         # Saving stats and interps
         n_clusters = len(self._centroids)
-        path = f"results/{method}{n_clusters}"
+        path = f"results/{method}{n_clusters:02d}"
         with open(f"{path}.pkl", "wb") as f:
             pickle.dump({
                 "stats": self._stats(),
