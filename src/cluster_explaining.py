@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--finetuned_model", type=str, default="models/finetuned-v2.pt")
-    parser.add_argument("--results_name", type=str, default="results/kmeans5")
+    parser.add_argument("--target", type=str, default="results/kmeans05")
     parser.add_argument("--comprehensive", action="store_true")
 
     args = parser.parse_args()
