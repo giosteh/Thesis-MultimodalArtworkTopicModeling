@@ -320,7 +320,7 @@ class ArtworkClusterer:
                 ax.axis("off")
             
             plt.tight_layout()
-            plt.savefig(f"{path}_cluster{cluster_label+1}.png", format="png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{path}_cluster{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
     
     def _visualize_embedding_space(self, path: str) -> None:

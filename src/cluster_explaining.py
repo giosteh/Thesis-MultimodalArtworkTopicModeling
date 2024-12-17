@@ -43,6 +43,7 @@ class Explainer:
             model_path (str): The path to the finetuned model. Defaults to "models/finetuned-v2.pt".
             groups (List[str]): The groups to explain. Defaults to ["GENRE", "TOPIC", "MEDIA", "STYLE"].
         """
+        ollama.pull("llava:13b-v1.6")
         self._model = load_model(base_model, model_path)
         self._groups = groups
     
@@ -114,7 +115,7 @@ class Explainer:
         # Generating the description
         for response in ollama.generate(model="llava:13b-v1.6",
                                         prompt=prompt,
-                                        image=image_bytes,
+                                        images=[image_bytes],
                                         stream=True):
             print(response["response"], end="", flush=True)
             description += response["response"]
