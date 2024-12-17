@@ -10,7 +10,10 @@ import argparse
 from artwork_clustering import load_model
 
 from typing import List, Tuple
+from PIL import Image
+from io import BytesIO
 import pickle
+import glob
 import warnings
 
 # Setting some things up
@@ -21,43 +24,9 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 
-configuration = """
-FROM mistral
-SYSTEM '''
-<s>
-[INST]
-The user will provide four ordered lists of terms describing a cluster of artworks: GENRE, TOPIC, MEDIA, and STYLE.
-Each list is ordered from most to least relevant for the cluster. Your task is to generate a single, short description that merges the most relevant terms from all four lists into a concise and cohesive sentence.
-Do not add any additional details, context, or narrative beyond the given terms. The output must be a single description that integrates all the lists organically.
-
-For instance:
-GENRE: vanitas, allegorical, still life,
-TOPIC: flowers, fruits, vegetables,
-MEDIA: tempera, oil, pastel,
-STYLE: classical, symbolism, abstract,
-
-Output:
-A vanitas still life painting blending allegorical symbolism, depicting flowers, fruits, and vegetables in oil and tempera, combining classical and symbolism styles.
-[/INST]
-</s>
-[INST]
-From now on, your output must be a single, short description that merges the most relevant terms from all four lists into a concise and cohesive sentence.
-Do not add any additional details, context, or narrative beyond the given terms. The output must be a single description that integrates all the lists organically.
-[/INST]
-'''
+BASIC_PROMPT = """
+Given this image containing a sample of artworks from a cluster, provide a concise and organic description of the cluster.
 """
-
-def create_cluster_explainer() -> None:
-    """
-    Creates the cluster explainer.
-    
-    Returns:
-        None
-    """
-    ollama.create(
-        model="cluster-explainer",
-        modelfile=configuration
-    )
 
 
 class Explainer:
@@ -74,85 +43,99 @@ class Explainer:
             model_path (str): The path to the finetuned model. Defaults to "models/finetuned-v2.pt".
             groups (List[str]): The groups to explain. Defaults to ["GENRE", "TOPIC", "MEDIA", "STYLE"].
         """
-        create_cluster_explainer()
         self._model = load_model(base_model, model_path)
         self._groups = groups
     
 
-    def __call__(self, interps: List[List[Tuple[str, float]]]) -> None:
+    def __call__(self, image_paths: List[str], interps: List[List[Tuple[str, float]]], comprehensive: bool = False) -> None:
         """
         Explains the given interpretations.
 
         Args:
+            image_paths (List[str]): The paths to the cluster sample images.
             interps (List[List[Tuple[str, float]]]): The interpretations to explain.
+            comprehensive (bool): Whether to use a comprehensive prompt.
 
         Returns:
             None
         """
-        self._prompts = [self.construct_prompt(interp) for interp in interps]
-        # Generating explanations
-        self._explanations = [self.explain(prompt) for prompt in self._prompts]
+        self._image_paths = image_paths
+        self._prompts = [self.setup_prompt(interp, comprehensive) for interp in interps]
+        # Generating descriptions
+        self._descriptions = [self.describe(path, prompt) for path, prompt in zip(self._image_paths, self._prompts)]
 
         # Saving the results
-        with open("results/explanations.pkl", "wb") as f:
+        with open("results/descriptions.pkl", "wb") as f:
             pickle.dump({
-                "prompts": self._prompts,
-                "explanations": self._explanations,
-                "similarity": self._explanations_similarity()
+                "descriptions": self._descriptions,
+                "similarity": self._descriptions_similarity()
             }, f)
 
-    def construct_prompt(self, interp: List[Tuple[str, float]]) -> str:
+    def setup_prompt(self, interp: List[Tuple[str, float]], comprehensive: bool = False) -> str:
         """
-        Constructs a prompt for the given interpretation.
+        Sets up a prompt for explaining the given interpretation.
 
         Args:
             interp (List[Tuple[str, float]]): The interpretation to construct a prompt for.
+            comprehensive (bool): Whether to use a comprehensive prompt.
 
         Returns:
             str: The constructed prompt.
         """
-        prompt = ""
+        prompt = BASIC_PROMPT
+        if not comprehensive:
+            return prompt
 
+        prompt += """
+            In the description, consider using the following ordered lists of terms resulting from a previous interpretation.\n\n
+        """
         for group_name, group in zip(self._groups, interp):
             terms = [term for term, _ in group]
             prompt += f"{group_name}: {', '.join(terms)}\n"
-        
         return prompt
     
-    def explain(self, prompt: str) -> str:
+    def describe(self, image_path: str, prompt: str) -> str:
         """
-        Explains the given prompt using the cluster explainer.
+        Describe the cluster using the sample image and the given prompt.
 
         Args:
-            prompt (str): The prompt to explain.
+            image_path (str): The path to the sample image.
+            prompt (str): The prompt to use.
 
         Returns:
-            str: The explanation.
+            str: The description.
         """
-        response = ollama.chat(
-            model="cluster-explainer",
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-
-        return response["message"]["content"]
+        image = Image.open(image_path).convert("RGB")
+        with BytesIO() as buffer:
+            image.save(buffer, format="PNG")
+            image_bytes = buffer.getvalue()
+        
+        description = ""
+        # Generating the description
+        for response in ollama.generate(model="llava:13b-v1.6",
+                                        prompt=prompt,
+                                        image=image_bytes,
+                                        stream=True):
+            print(response["response"], end="", flush=True)
+            description += response["response"]
+        
+        return description
     
-    def _explanations_similarity(self) -> List[float]:
+    def _descriptions_similarity(self) -> List[float]:
         """
-        Computes the similarity between the explanations.
+        Computes the similarity between the descriptions.
 
         Returns:
-            List[float]: The similarity between the explanations.
+            List[float]: The similarity between the descriptions.
         """
         with torch.no_grad():
-            explanations = clip.tokenize(self._explanations).to(device)
-            explanations = self._model.encode_text(explanations)
-            explanations = explanations / explanations.norm(dim=-1, keepdim=True)
+            descriptions = clip.tokenize(self._descriptions).to(device)
+            descriptions = self._model.encode_text(descriptions)
+            descriptions = descriptions / descriptions.norm(dim=-1, keepdim=True)
             
             # Computing the cosine similarity
-            similarity = (100.0 * explanations @ explanations.t()).fill_diagonal_(0.0)
-            similarities = similarity.sum(dim=-1) / (len(self._explanations) - 1)
+            similarity = (100.0 * descriptions @ descriptions.t()).fill_diagonal_(0.0)
+            similarities = similarity.sum(dim=-1) / (len(self._descriptions) - 1)
 
         return similarities
 
@@ -162,18 +145,21 @@ if __name__ == "__main__":
     # command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--finetuned_model", type=str, default="models/finetuned-v2.pt")
-    parser.add_argument("--interps_path", type=str, default="results/kmeans.pkl")
+    parser.add_argument("--results_name", type=str, default="results/kmeans5")
+    parser.add_argument("--comprehensive", action="store_true")
 
     args = parser.parse_args()
 
-    # 1. load the interpretations
-    with open(args.interps_path, "rb") as f:
+    # 1.1 load the interpretations
+    with open(f"{args.results_name}.pkl", "rb") as f:
         interps = pickle.load(f)["interps"]
+    # 1.2 get the sample image paths
+    image_paths = sorted(glob.glob(f"{args.results_name}*.png"))
     
     # 2. initialize the explainer
     explainer = Explainer(
         model_path=args.finetuned_model
     )
 
-    # 3. explain the clusters found
-    explainer(interps)
+    # 3. describe the clusters
+    explainer(image_paths, interps, comprehensive=args.comprehensive)

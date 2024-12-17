@@ -153,10 +153,7 @@ class ArtworkClusterer:
             self._signifiers_groups = pickle.load(f) # List[List[str]]
     
 
-    def cluster(self,
-                method: str = "kmeans",
-                n_terms: int = 5,
-                **kwds) -> None:
+    def cluster(self, method: str = "kmeans", n_terms: int = 5, **kwds) -> None:
         """
         Clusters the embeddings using the specified method.
 
