@@ -380,7 +380,6 @@ if __name__ == "__main__":
     # 2. perform clustering
     clusterer.cluster(
         method=args.method,
-        represent_with=args.represent_with,
         n_terms=args.n_terms,
         n_clusters=args.n_clusters,
         eps=args.eps,
