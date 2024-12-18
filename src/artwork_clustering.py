@@ -149,7 +149,7 @@ class ArtworkClusterer:
         self.labels = None
         self.centers = []
         self.interps = []
-        # Loading signifiers
+        # Loading signifiers for cluster interpretation
         with open(signifiers_path, "rb") as f:
             self.signifiers = pickle.load(f) # Must be a tuple holding two lists
     
@@ -335,10 +335,10 @@ class ArtworkClusterer:
             description = "Automatic cluster description:\n"
             interp = self.interps[cluster_label]
             for group_name, group in zip(self.signifiers[0], interp):
-                terms = [f"`{term}` ({score:.2f})" for term, score in group]
-                description += f"- {group_name.capitalize()}: {', '.join(terms)}\n\n"
-            fig.text(.5, -.2, description, ha="center", va="bottom", fontsize=14, wrap=True)
-            plt.savefig(f"{path}_cluster{cluster_label+1:02d}_description.png", format="png", dpi=300, bbox_inches="tight")
+                terms = [f"{term.upper()} ({score:.2f})" for term, score in group]
+                description += f"- {group_name.capitalize()}/ {', '.join(terms)}\n"
+            fig.text(.5, -.15, description, ha="center", va="bottom", fontsize=16, linespacing=1.6, wrap=True)
+            plt.savefig(f"{path}_interp{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
     
     def _visualize_embedding_space(self, path: str) -> None:
@@ -366,9 +366,9 @@ class ArtworkClusterer:
         # Plotting & saving
         plt.figure(figsize=(10, 10))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
-                    c=sampled_labels, cmap="viridis", s=45, alpha=.7, marker="^")
+                    c=sampled_labels, cmap="viridis", s=30, alpha=.7, marker="h")
         plt.scatter(centers[:, 0], centers[:, 1],
-                    c=np.arange(len(self.centers)), cmap="viridis", s=70, marker="x")
+                    c=np.arange(len(self.centers)), cmap="viridis", s=150, marker="*")
         
         plt.title("Artwork Embedding Space")
         plt.savefig(f"{path}.png", format="png", dpi=300, bbox_inches="tight")
