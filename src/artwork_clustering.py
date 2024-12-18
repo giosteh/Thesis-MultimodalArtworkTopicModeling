@@ -254,7 +254,7 @@ class ArtworkClusterer:
             "avg_overlap_per_group": [],
             "avg_overlap_per_cluster": []
         }
-        n_clusters, n_groups = len(self.interps), len(self._signifiers_groups)
+        n_clusters, n_groups = len(self.centers), len(self.signifiers[0])
         overlaps = np.zeros((n_clusters, n_groups))
         for i in range(n_clusters):
             for j in range(n_groups):
