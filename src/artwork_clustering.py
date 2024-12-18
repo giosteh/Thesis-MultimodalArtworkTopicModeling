@@ -320,7 +320,7 @@ class ArtworkClusterer:
         self._df["cluster"] = self.labels
 
         for cluster_label, cluster_df in self._df.groupby("cluster"):
-            sample_images = cluster_df["image_path"].sample(n_samples, random_state=42)
+            sample_images = cluster_df["image_path"].sample(n_samples, random_state=0)
             # Plotting & saving
             fig, axes = plt.subplots(n_samples // 5, 5, figsize=(15, 12))
             fig.suptitle(f"Cluster {cluster_label+1}")
@@ -335,8 +335,8 @@ class ArtworkClusterer:
             interp = self.interps[cluster_label]
             for group_name, group in zip(self.signifiers[0], interp):
                 terms = [f"`{term}` ({score:.2f})" for term, score in group]
-                description += f"{group_name}: {', '.join(terms)}\n"
-            fig.text(.5, -.03, description, ha="center", va="bottom", fontsize=12, wrap=True)
+                description += f"- {group_name.capitalize()}: {', '.join(terms)}\n\n"
+            fig.text(.5, -.2, description, ha="center", va="bottom", fontsize=14, wrap=True)
             plt.savefig(f"{path}_cluster{cluster_label+1:02d}_description.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
     
