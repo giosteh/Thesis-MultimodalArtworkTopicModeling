@@ -11,7 +11,6 @@ from artwork_clustering import load_model
 
 from typing import List, Tuple
 from PIL import Image
-from io import BytesIO
 import pickle
 import glob
 import warnings
