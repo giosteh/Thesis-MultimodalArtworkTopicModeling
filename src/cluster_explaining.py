@@ -4,7 +4,7 @@ Classes and functions for explaining the clusters using LLMs.
 
 import clip
 import torch
-import ollama
+from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
 
 import argparse
 from artwork_clustering import load_model
@@ -43,9 +43,12 @@ class Explainer:
             model_path (str): The path to the finetuned model. Defaults to "models/finetuned-v2.pt".
             groups (List[str]): The groups to explain. Defaults to ["GENRE", "TOPIC", "MEDIA", "STYLE"].
         """
-        ollama.pull("llava:13b-v1.6")
-        self._model = load_model(base_model, model_path)
+        self._clip_model = load_model(base_model, model_path)
         self._groups = groups
+
+        self._llm = LlavaNextForConditionalGeneration.from_pretrained("llava-hf/llava-v1.6-vicuna-13b-hf",
+                                                                     torch_dtype=torch.float16, device_map="auto")
+        self._processor = LlavaNextProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-13b-hf")
     
 
     def __call__(self, image_paths: List[str], interps: List[List[Tuple[str, float]]], comprehensive: bool = False) -> None:
@@ -55,7 +58,7 @@ class Explainer:
         Args:
             image_paths (List[str]): The paths to the cluster sample images.
             interps (List[List[Tuple[str, float]]]): The interpretations to explain.
-            comprehensive (bool): Whether to use a comprehensive prompt.
+            comprehensive (bool): Whether to use a comprehensive prompt_text.
 
         Returns:
             None
@@ -63,7 +66,7 @@ class Explainer:
         self._image_paths = image_paths
         self._prompts = [self.setup_prompt(interp, comprehensive) for interp in interps]
         # Generating descriptions
-        self._descriptions = [self.describe(path, prompt) for path, prompt in zip(self._image_paths, self._prompts)]
+        self._descriptions = [self.describe(path, text) for path, text in zip(self._image_paths, self._prompts)]
 
         # Saving the results
         with open("results/descriptions.pkl", "wb") as f:
@@ -74,52 +77,56 @@ class Explainer:
 
     def setup_prompt(self, interp: List[Tuple[str, float]], comprehensive: bool = False) -> str:
         """
-        Sets up a prompt for explaining the given interpretation.
+        Sets up the prompt text for explaining the given interpretation.
 
         Args:
-            interp (List[Tuple[str, float]]): The interpretation to construct a prompt for.
-            comprehensive (bool): Whether to use a comprehensive prompt.
+            interp (List[Tuple[str, float]]): The interpretation to construct a prompt_text for.
+            comprehensive (bool): Whether to use a comprehensive prompt_text.
 
         Returns:
-            str: The constructed prompt.
+            str: The prompt_text.
         """
-        prompt = BASIC_PROMPT
+        prompt_text = BASIC_PROMPT
         if not comprehensive:
-            return prompt
+            return prompt_text
 
-        prompt += """
+        prompt_text += """
             In the description, consider using the following ordered lists of terms resulting from a previous interpretation.\n\n
         """
         for group_name, group in zip(self._groups, interp):
             terms = [term for term, _ in group]
-            prompt += f"{group_name}: {', '.join(terms)}\n"
-        return prompt
+            prompt_text += f"{group_name}: {', '.join(terms)}\n"
+        return prompt_text
     
-    def describe(self, image_path: str, prompt: str) -> str:
+    def describe(self, image_path: str, prompt_text: str) -> str:
         """
-        Describe the cluster using the sample image and the given prompt.
+        Describe the cluster using the sample image and the given prompt_text.
 
         Args:
             image_path (str): The path to the sample image.
-            prompt (str): The prompt to use.
+            prompt_text (str): The prompt text to use.
 
         Returns:
             str: The description.
         """
         image = Image.open(image_path).convert("RGB")
-        with BytesIO() as buffer:
-            image.save(buffer, format="PNG")
-            image_bytes = buffer.getvalue()
-        
-        description = ""
-        # Generating the description
-        for response in ollama.generate(model="llava:13b-v1.6",
-                                        prompt=prompt,
-                                        images=[image_bytes],
-                                        stream=True):
-            print(response["response"], end="", flush=True)
-            description += response["response"]
-        
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt_text},
+                    {"type": "image"},
+                ],
+            },
+        ]
+        # Infer the description
+        prompt = self._processor.apply_chat_template(conversation, add_generation_prompt=True)
+        inputs = self._processor(images=image, text=prompt, return_tensors="pt").to("cuda:0")
+
+        output = self._llm.generate(**inputs, max_new_tokens=100)
+        description = self._processor.decode(output[0], skip_special_tokens=True)
+        print(description)
+
         return description
     
     def _descriptions_similarity(self) -> List[float]:
@@ -131,7 +138,7 @@ class Explainer:
         """
         with torch.no_grad():
             descriptions = clip.tokenize(self._descriptions).to(device)
-            descriptions = self._model.encode_text(descriptions)
+            descriptions = self._clip_model.encode_text(descriptions)
             descriptions = descriptions / descriptions.norm(dim=-1, keepdim=True)
             
             # Computing the cosine similarity
