@@ -8,6 +8,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.cluster import KMeans, DBSCAN
+from sklearn_extra.cluster import KMedoids
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from umap import UMAP
 
@@ -145,12 +146,12 @@ class ArtworkClusterer:
         self._embeddings = X_normalized.cpu().numpy()
 
         self._clusterer = None
-        self._labels = None
-        self._centroids = []
-        self._interps = []
+        self.labels = None
+        self.centers = []
+        self.interps = []
         # Loading signifiers
         with open(signifiers_path, "rb") as f:
-            self._signifiers_groups = pickle.load(f) # List[List[str]]
+            self.signifiers = pickle.load(f) # Tuple[List[str]]
     
 
     def cluster(self, method: str = "kmeans", n_terms: int = 5, **kwds) -> None:
@@ -173,6 +174,15 @@ class ArtworkClusterer:
                     max_iter=10000,
                     random_state=42
                 )
+            case "kmedoids":
+                self._clusterer = KMedoids(
+                    n_clusters=kwds["n_clusters"] if "n_clusters" in kwds else 10,
+                    init="k-medoids++",
+                    metric="cosine",
+                    method="pam",
+                    max_iter=10000,
+                    random_state=42
+                )
             case "dbscan":
                 self._clusterer = DBSCAN(
                     eps=kwds["eps"] if "eps" in kwds else .2,
@@ -180,17 +190,17 @@ class ArtworkClusterer:
                     metric="cosine"
                 )
         # Fitting the model
-        self._labels = self._clusterer.fit_predict(self._embeddings)
-        self._get_cluster_centroids()
+        self.labels = self._clusterer.fit_predict(self._embeddings)
+        self._get_cluster_centers()
         self._signify_clusters(n_terms=n_terms)
 
         # Saving stats and interps
-        n_clusters = len(self._centroids)
+        n_clusters = len(self.centers)
         path = f"results/{method}{n_clusters:02d}"
         with open(f"{path}.pkl", "wb") as f:
             pickle.dump({
                 "stats": self._stats(),
-                "interps": self._interps,
+                "interps": self.interps,
                 "interps_stats": self._interps_stats()
             }, f)
         # Visualizing
@@ -205,19 +215,19 @@ class ArtworkClusterer:
             Dict[str, float]: The clustering statistics.
         """
         return {
-            "labels": self._labels,
-            "sizes": np.bincount(self._labels[self._labels != -1]),
-            "silhouette": silhouette_score(self._embeddings, self._labels),
-            "calinski_harabasz": calinski_harabasz_score(self._embeddings, self._labels),
+            "labels": self.labels,
+            "sizes": np.bincount(self.labels[self.labels != -1]),
+            "silhouette": silhouette_score(self._embeddings, self.labels),
+            "calinski_harabasz": calinski_harabasz_score(self._embeddings, self.labels),
             "inertia": self._clusterer.inertia_ if hasattr(self._clusterer, "inertia_") else None
         }
     
     def _interps_stats(self) -> Dict[str, List[float]]:
         """
-        Gets the signification statistics, i.e. the average overlap between clusters.
+        Gets the interpretation statistics, i.e. the average overlap between clusters.
 
         Returns:
-            Dict[str, List[float]]: The signification statistics.
+            Dict[str, List[float]]: The interpretation statistics.
         """
         def avg_overlap(group_idx: int, cluster_idx: int) -> float:
             """
@@ -230,10 +240,10 @@ class ArtworkClusterer:
             Returns:
                 float: The average overlap between clusters.
             """
-            group_interp = self._interps[cluster_idx][group_idx]
+            group_interp = self.interps[cluster_idx][group_idx]
             group_terms, n_terms = set([t for t, _ in group_interp]), len(group_interp)
             overlap = 0
-            for i, interp in enumerate(self._interps):
+            for i, interp in enumerate(self.interps):
                 if i == cluster_idx:
                     continue
                 same_group_terms = set([t for t, _ in interp[group_idx]])
@@ -244,7 +254,7 @@ class ArtworkClusterer:
             "avg_overlap_per_group": [],
             "avg_overlap_per_cluster": []
         }
-        n_clusters, n_groups = len(self._interps), len(self._signifiers_groups)
+        n_clusters, n_groups = len(self.interps), len(self._signifiers_groups)
         overlaps = np.zeros((n_clusters, n_groups))
         for i in range(n_clusters):
             for j in range(n_groups):
@@ -254,23 +264,23 @@ class ArtworkClusterer:
         stats["avg_overlap_per_cluster"] = np.mean(overlaps, axis=1).tolist()
         return stats
 
-    def _get_cluster_centroids(self) -> None:
+    def _get_cluster_centers(self) -> None:
         """
-        Gets the centroids for each of the clusters found.
+        Gets the centers for each of the clusters found.
 
         Returns:
             None
         """
-        if isinstance(self._clusterer, KMeans):
-            self._centroids = self._clusterer.cluster_centers_
+        if isinstance(self._clusterer, KMeans) or isinstance(self._clusterer, KMedoids):
+            self.centers = self._clusterer.cluster_centers_
         else:
-            # Computing the centroids
-            unique_labels = np.unique(self._labels[self._labels != -1])
-            self._centroids = [self._embeddings[self._labels == label].mean(axis=0) for label in unique_labels]
+            # Computing the centers
+            unique_labels = np.unique(self.labels[self.labels != -1])
+            self.centers = [self._embeddings[self.labels == label].mean(axis=0) for label in unique_labels]
     
     def _signify_clusters(self, n_terms: int = 5) -> None:
         """
-        Signifies the clusters found using the cluster centroids.
+        Signifies the clusters found using the cluster centers.
 
         Args:
             n_terms (int): The number of terms to use. Defaults to 5.
@@ -279,22 +289,22 @@ class ArtworkClusterer:
             None
         """
         with torch.no_grad():
-            for centroid in self._centroids:
+            for center in self.centers:
                 interp = []
-                centroid = torch.from_numpy(centroid).float().to(device)
+                center = torch.from_numpy(center).float().to(device)
                 # Iterating over the groups
                 for group in self._signifiers_groups:
                     signifiers = clip.tokenize([s for _, s in group]).to(device)
                     signifiers = self._model.encode_text(signifiers)
                     signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
                     # Computing the cosine similarity
-                    similarity = 100.0 * centroid @ signifiers.t()
+                    similarity = 100.0 * center @ signifiers.t()
 
                     values, indices = similarity.topk(min(n_terms, len(group)))
                     group_interp = [(group[i][0], v.item()) for i, v in zip(indices, values)]
                     interp.append(group_interp)
 
-                self._interps.append(interp)
+                self.interps.append(interp)
     
     def _visualize_clusters(self, path: str, n_samples: int) -> None:
         """
@@ -307,7 +317,7 @@ class ArtworkClusterer:
         Returns:
             None
         """
-        self._df["cluster"] = self._labels
+        self._df["cluster"] = self.labels
 
         for cluster_label, cluster_df in self._df.groupby("cluster"):
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=42)
@@ -318,9 +328,16 @@ class ArtworkClusterer:
             for ax, image_path in zip(axes, sample_images):
                 ax.imshow(Image.open(image_path))
                 ax.axis("off")
-            
             plt.tight_layout()
             plt.savefig(f"{path}_cluster{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
+
+            description = "Automatic cluster description:\n"
+            interp = self.interps[cluster_label]
+            for group_name, group in zip(self.signifiers[0], interp):
+                terms = [f"`{term}` ({score:.2f})" for term, score in group]
+                description += f"{group_name}: {', '.join(terms)}\n"
+            fig.text(.5, -.03, description, ha="center", va="bottom", fontsize=12, wrap=True)
+            plt.savefig(f"{path}_cluster{cluster_label+1:02d}_description.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
     
     def _visualize_embedding_space(self, path: str) -> None:
@@ -341,13 +358,17 @@ class ArtworkClusterer:
             random_state=42
         )
         embeddings = reducer.fit_transform(self._embeddings)
+        centers = reducer.transform(self.centers)
         
-        sample = train_test_split(embeddings, self._labels, train_size=1000, stratify=self._labels, random_state=42)
+        sample = train_test_split(embeddings, self.labels, train_size=1000, stratify=self.labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         # Plotting & saving
         plt.figure(figsize=(10, 10))
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels, cmap="viridis", s=40, alpha=.8)
-
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
+                    c=sampled_labels, cmap="viridis", s=45, alpha=.7, marker="^")
+        plt.scatter(centers[:, 0], centers[:, 1],
+                    c=np.arange(len(self.centers)), cmap="viridis", s=60, marker="x")
+        
         plt.title("Artwork Embedding Space")
         plt.savefig(f"{path}.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
