@@ -151,7 +151,7 @@ class ArtworkClusterer:
         self.interps = []
         # Loading signifiers
         with open(signifiers_path, "rb") as f:
-            self.signifiers = pickle.load(f) # Tuple[List[str]]
+            self.signifiers = pickle.load(f) # Must be a tuple holding two lists
     
 
     def cluster(self, method: str = "kmeans", n_terms: int = 5, **kwds) -> None:
@@ -293,7 +293,7 @@ class ArtworkClusterer:
                 interp = []
                 center = torch.from_numpy(center).float().to(device)
                 # Iterating over the groups
-                for group in self._signifiers_groups:
+                for group in self.signifiers[1]:
                     signifiers = clip.tokenize([s for _, s in group]).to(device)
                     signifiers = self._model.encode_text(signifiers)
                     signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
@@ -367,7 +367,7 @@ class ArtworkClusterer:
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
                     c=sampled_labels, cmap="viridis", s=45, alpha=.7, marker="^")
         plt.scatter(centers[:, 0], centers[:, 1],
-                    c=np.arange(len(self.centers)), cmap="viridis", s=60, marker="x")
+                    c=np.arange(len(self.centers)), cmap="viridis", s=70, marker="x")
         
         plt.title("Artwork Embedding Space")
         plt.savefig(f"{path}.png", format="png", dpi=300, bbox_inches="tight")
