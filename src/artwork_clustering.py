@@ -326,11 +326,12 @@ class ArtworkClusterer:
             fig.suptitle(f"Cluster {cluster_label+1}")
             axes = axes.flatten()
             for ax, image_path in zip(axes, sample_images):
-                ax.imshow(Image.open(image_path))
+                ax.imshow(Image.open(image_path.strip(",'()")).convert("RGB"))
                 ax.axis("off")
             plt.tight_layout()
             plt.savefig(f"{path}_cluster{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
 
+            # Saving the samples along with the cluster description
             description = "Automatic cluster description:\n"
             interp = self.interps[cluster_label]
             for group_name, group in zip(self.signifiers[0], interp):
