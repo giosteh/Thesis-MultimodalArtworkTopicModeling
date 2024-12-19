@@ -322,7 +322,7 @@ class ArtworkClusterer:
         for cluster_label, cluster_df in self._df.groupby("cluster"):
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=0)
             # Plotting & saving
-            fig, axes = plt.subplots(n_samples // 5 + 1, 5, figsize=(18, 15))
+            fig, axes = plt.subplots(n_samples // 5, 5, figsize=(18, 15))
             fig.suptitle(f"Cluster {cluster_label+1}")
             axes = axes.flatten()
             for ax, image_path in zip(axes, sample_images):
