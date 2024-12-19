@@ -141,7 +141,7 @@ class Explainer:
             descriptions = descriptions / descriptions.norm(dim=-1, keepdim=True)
             
             # Computing the cosine similarity
-            similarity = (100.0 * descriptions @ descriptions.t()).fill_diagonal_(0.0)
+            similarity = (descriptions @ descriptions.t()).fill_diagonal_(.0)
             similarities = similarity.sum(dim=-1) / (len(self._descriptions) - 1)
 
         return similarities

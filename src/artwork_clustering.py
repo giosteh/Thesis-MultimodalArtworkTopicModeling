@@ -298,7 +298,7 @@ class ArtworkClusterer:
                     signifiers = self._model.encode_text(signifiers)
                     signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
                     # Computing the cosine similarity
-                    similarity = 100.0 * center @ signifiers.t()
+                    similarity = center @ signifiers.t()
 
                     values, indices = similarity.topk(min(n_terms, len(group)))
                     group_interp = [(group[i][0], v.item()) for i, v in zip(indices, values)]
@@ -336,8 +336,8 @@ class ArtworkClusterer:
             interp = self.interps[cluster_label]
             for group_name, group in zip(self.signifiers[0], interp):
                 terms = [f"{term.upper()} ({score:.2f})" for term, score in group]
-                description += f"- {group_name.capitalize()}/ {', '.join(terms)}\n"
-            fig.text(.5, -.15, description, ha="center", va="bottom", fontsize=16, linespacing=1.6, wrap=True)
+                description += f"{group_name.capitalize()}/ {', '.join(terms)}\n"
+            fig.text(.5, -.2, description, ha="center", va="bottom", fontsize=16, linespacing=1.6, wrap=True)
             plt.savefig(f"{path}_interp{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
     
