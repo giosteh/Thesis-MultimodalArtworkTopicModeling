@@ -339,7 +339,7 @@ class ArtworkClusterer:
                 filtered.append(terms)
             headers = [g.capitalize() for g in self.signifiers[0]]
 
-            max_rows = max([len(col)] for col in filtered)
+            max_rows = max([len(col) for col in filtered])
             table = [col + [""] * (max_rows - len(col)) for col in filtered]
             table = list(map(list, zip(*table)))
 
