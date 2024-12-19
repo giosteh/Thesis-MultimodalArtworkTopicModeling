@@ -158,10 +158,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 1.1 load the interpretations
-    with open(f"{args.results_name}.pkl", "rb") as f:
+    with open(f"{args.target}.pkl", "rb") as f:
         interps = pickle.load(f)["interps"]
     # 1.2 get the sample image paths
-    image_paths = sorted(glob.glob(f"{args.results_name}*.png"))
+    image_paths = sorted(glob.glob(f"{args.target}_cluster*.png"))
     
     # 2. initialize the explainer
     explainer = Explainer(

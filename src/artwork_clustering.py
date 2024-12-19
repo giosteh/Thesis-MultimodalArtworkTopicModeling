@@ -294,7 +294,7 @@ class ArtworkClusterer:
                 center = torch.from_numpy(center).float().to(device)
                 # Iterating over the groups
                 for group in self.signifiers[1]:
-                    signifiers = clip.tokenize([s for _, s in group]).to(device)
+                    signifiers = clip.tokenize([s.lower() for _, s in group]).to(device)
                     signifiers = self._model.encode_text(signifiers)
                     signifiers = signifiers / signifiers.norm(dim=-1, keepdim=True)
                     # Computing the cosine similarity
@@ -322,7 +322,7 @@ class ArtworkClusterer:
         for cluster_label, cluster_df in self._df.groupby("cluster"):
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=0)
             # Plotting & saving
-            fig, axes = plt.subplots(n_samples // 5, 5, figsize=(15, 12))
+            fig, axes = plt.subplots(n_samples // 5 + 1, 5, figsize=(18, 15))
             fig.suptitle(f"Cluster {cluster_label+1}")
             axes = axes.flatten()
             for ax, image_path in zip(axes, sample_images):
@@ -332,12 +332,26 @@ class ArtworkClusterer:
             plt.savefig(f"{path}_cluster{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
 
             # Saving the samples along with the cluster description
-            description = "Automatic cluster description:\n"
             interp = self.interps[cluster_label]
-            for group_name, group in zip(self.signifiers[0], interp):
-                terms = [f"{term.upper()} ({score:.2f})" for term, score in group]
-                description += f"{group_name.capitalize()}/ {', '.join(terms)}\n"
-            fig.text(.5, -.2, description, ha="center", va="bottom", fontsize=16, linespacing=1.6, wrap=True)
+            filtered = []
+            for group in interp:
+                terms = [f"{t.lower()} ({v:.2f})" for t, v in group if v >= 0.35]
+                filtered.append(terms)
+            headers = [g.capitalize() for g in self.signifiers[0]]
+
+            max_rows = max([len(col)] for col in filtered)
+            table = [col + [""] * (max_rows - len(col)) for col in filtered]
+            table = list(map(list, zip(*table)))
+
+            table_ax = fig.add_subplot(111, frame_on=False)
+            table_ax.axis("off")
+            table_plot = table_ax.table(cellText=table, colLabels=headers, loc="bottom",
+                                        cellLoc="center", colColours=["lightgray"] * len(headers),
+                                        bbox=[0, -.2, 1, .2])
+            table_plot.auto_set_font_size(False)
+            table_plot.set_fontsize(12)
+
+            plt.tight_layout()
             plt.savefig(f"{path}_interp{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
     
