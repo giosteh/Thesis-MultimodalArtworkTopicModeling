@@ -33,14 +33,14 @@ class Explainer:
     def __init__(self,
                  base_model: str = "ViT-B/32",
                  model_path: str = "models/finetuned-v2.pt",
-                 groups: List[str] = ["GENRE", "TOPIC", "MEDIA", "STYLE"]) -> None:
+                 groups: List[str] = ["GENRE", "TOPIC", "COLOR", "MEDIA", "STYLE"]) -> None:
         """
         Initializes the explainer.
 
         Args:
             base_model (str): The base model to use. Defaults to "ViT-B/32".
             model_path (str): The path to the finetuned model. Defaults to "models/finetuned-v2.pt".
-            groups (List[str]): The groups to explain. Defaults to ["GENRE", "TOPIC", "MEDIA", "STYLE"].
+            groups (List[str]): The groups to explain. Defaults to ["GENRE", "TOPIC", "COLOR", "MEDIA", "STYLE"].
         """
         self._clip_model = load_model(base_model, model_path)
         self._groups = groups
