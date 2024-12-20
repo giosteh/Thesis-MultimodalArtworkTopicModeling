@@ -24,7 +24,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 BASIC_PROMPT = """
-Given this image containing a sample of artworks from a cluster, provide a concise and organic description of the cluster.
+Given this image containing a sample of artworks from a cluster, generate a few sentences description of the cluster.
+The description should be short and straight to the point, avoiding general information and focusing on the most relevant aspects of the artworks. 
 """
 
 
@@ -98,7 +99,7 @@ class Explainer:
             return prompt_text
 
         prompt_text += """
-            In the description, consider using the following ordered lists of terms resulting from a previous interpretation.\n\n
+            In the description you'll generate, consider using the following ordered lists of terms.\n\n
         """
         for group_name, group in zip(self._groups, interp):
             terms = [term for term, _ in group]
@@ -147,12 +148,6 @@ class Explainer:
             add_generation_prompt=True
         )
         inputs = self._processor(images=image, text=prompt, return_tensors="pt").to("cuda:0")
-
-        output = self._llm.generate(**inputs, max_new_tokens=200)
-        description = self._processor.decode(output[0], skip_special_tokens=True)
-        print(description)
-
-        return description
     
     def _descriptions_similarity(self) -> List[float]:
         """

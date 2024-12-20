@@ -323,7 +323,6 @@ class ArtworkClusterer:
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=0)
             # Plotting & saving
             fig, axes = plt.subplots(n_samples // 5, 5, figsize=(20, 22))
-            fig.suptitle(f"Cluster {cluster_label+1}")
             axes = axes.flatten()
             for ax, image_path in zip(axes, sample_images):
                 ax.imshow(Image.open(image_path.strip(",'()")).convert("RGB"))
@@ -333,21 +332,18 @@ class ArtworkClusterer:
 
             # Saving the samples along with the cluster description
             interp = self.interps[cluster_label]
-            filtered = []
-            for group in interp:
-                terms = [f"{t.lower()} ({v:.2f})" for t, v in group]
-                filtered.append(terms)
             headers = [g.capitalize() for g in self.signifiers[0]]
+            table = [[f"{t.lower()} ({v:.2f})" for t, v in group] for group in interp]
             table = list(map(list, zip(*table)))
 
             table_ax = fig.add_subplot(111, frame_on=False)
             table_ax.axis("off")
             table_plot = table_ax.table(cellText=table, colLabels=headers, loc="bottom",
                                         cellLoc="center", colColours=["lightgray"] * len(headers),
-                                        bbox=[0, -.5, 1, .25])
+                                        bbox=[0, -.1, .9, .3])
             table_plot.auto_set_font_size(False)
-            table_plot.set_fontsize(13)
-
+            table_plot.set_fontsize(14)
+            
             plt.tight_layout()
             plt.savefig(f"{path}_interp{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
@@ -379,7 +375,8 @@ class ArtworkClusterer:
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
                     c=sampled_labels, cmap="viridis", s=30, alpha=.7, marker="h")
         plt.scatter(centers[:, 0], centers[:, 1],
-                    c=np.arange(len(self.centers)), cmap="viridis", s=150, marker="*")
+                    c=np.arange(len(self.centers)), cmap="viridis", s=150, marker="X")
+        plt.colorbar()
         
         plt.title("Artwork Embedding Space")
         plt.savefig(f"{path}.png", format="png", dpi=300, bbox_inches="tight")
