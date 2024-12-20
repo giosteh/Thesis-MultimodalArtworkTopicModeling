@@ -44,19 +44,20 @@ class Explainer:
         """
         self._clip_model = load_model(base_model, model_path)
         self._groups = groups
+        self._image_paths = []
+        self._prompts = []
+        self._descriptions = []
 
         self._llm = LlavaNextForConditionalGeneration.from_pretrained(
             "llava-hf/llava-v1.6-vicuna-13b-hf",
             torch_dtype=torch.float16,
             device_map="auto"
         )
-        self._processor = LlavaNextProcessor.from_pretrained(
-            "llava-hf/llava-v1.6-vicuna-13b-hf",
-            patch_size=16,
-            vision_feature_select_strategy="default"
-        )
+        self._processor = LlavaNextProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-13b-hf")
+        self._processor.patch_size = 14
+        self._processor.vision_feature_select_strategy = "default"
     
-
+    
     def __call__(self, image_paths: List[str], interps: List[List[Tuple[str, float]]], comprehensive: bool = False) -> None:
         """
         Explains the given interpretations.
@@ -147,7 +148,7 @@ class Explainer:
         )
         inputs = self._processor(images=image, text=prompt, return_tensors="pt").to("cuda:0")
 
-        output = self._llm.generate(**inputs, max_new_tokens=100)
+        output = self._llm.generate(**inputs, max_new_tokens=200)
         description = self._processor.decode(output[0], skip_special_tokens=True)
         print(description)
 
