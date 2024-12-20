@@ -322,7 +322,7 @@ class ArtworkClusterer:
         for cluster_label, cluster_df in self._df.groupby("cluster"):
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=0)
             # Plotting & saving
-            fig, axes = plt.subplots(n_samples // 5, 5, figsize=(18, 15))
+            fig, axes = plt.subplots(n_samples // 5, 5, figsize=(20, 22))
             fig.suptitle(f"Cluster {cluster_label+1}")
             axes = axes.flatten()
             for ax, image_path in zip(axes, sample_images):
@@ -335,21 +335,18 @@ class ArtworkClusterer:
             interp = self.interps[cluster_label]
             filtered = []
             for group in interp:
-                terms = [f"{t.lower()} ({v:.2f})" for t, v in group if v >= 0.35]
+                terms = [f"{t.lower()} ({v:.2f})" for t, v in group]
                 filtered.append(terms)
             headers = [g.capitalize() for g in self.signifiers[0]]
-
-            max_rows = max([len(col) for col in filtered])
-            table = [col + [""] * (max_rows - len(col)) for col in filtered]
             table = list(map(list, zip(*table)))
 
             table_ax = fig.add_subplot(111, frame_on=False)
             table_ax.axis("off")
             table_plot = table_ax.table(cellText=table, colLabels=headers, loc="bottom",
                                         cellLoc="center", colColours=["lightgray"] * len(headers),
-                                        bbox=[0, -.2, 1, .2])
+                                        bbox=[0, -.5, 1, .25])
             table_plot.auto_set_font_size(False)
-            table_plot.set_fontsize(12)
+            table_plot.set_fontsize(13)
 
             plt.tight_layout()
             plt.savefig(f"{path}_interp{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")

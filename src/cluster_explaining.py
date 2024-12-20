@@ -45,9 +45,16 @@ class Explainer:
         self._clip_model = load_model(base_model, model_path)
         self._groups = groups
 
-        self._llm = LlavaNextForConditionalGeneration.from_pretrained("llava-hf/llava-v1.6-vicuna-13b-hf",
-                                                                     torch_dtype=torch.float16, device_map="auto")
-        self._processor = LlavaNextProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-13b-hf")
+        self._llm = LlavaNextForConditionalGeneration.from_pretrained(
+            "llava-hf/llava-v1.6-vicuna-13b-hf",
+            torch_dtype=torch.float16,
+            device_map="auto"
+        )
+        self._processor = LlavaNextProcessor.from_pretrained(
+            "llava-hf/llava-v1.6-vicuna-13b-hf",
+            patch_size=16,
+            vision_feature_select_strategy="default"
+        )
     
 
     def __call__(self, image_paths: List[str], interps: List[List[Tuple[str, float]]], comprehensive: bool = False) -> None:
@@ -118,8 +125,26 @@ class Explainer:
                 ],
             },
         ]
+
+        template = (
+            "{% for message in messages %}"
+            "{% if message['role'] != 'system' %}"
+            "{{ message['role'].upper() + ': '}}"
+            "{% endif %}"
+            "{% for content in message['content'] | selectattr('type', 'equalto', 'image') %}"
+            "{{ '<image>\n' }}"
+            "{% endfor %}"
+            "{% for content in message['content'] | selectattr('type', 'equalto', 'text') %}"
+            "{{ content['text'] + ' '}}"
+            "{% endfor %}"
+            "{% endfor %}"
+        )
         # Infer the description
-        prompt = self._processor.apply_chat_template(conversation, add_generation_prompt=True)
+        prompt = self._processor.apply_chat_template(
+            conversation=conversation,
+            chat_template=template,
+            add_generation_prompt=True
+        )
         inputs = self._processor(images=image, text=prompt, return_tensors="pt").to("cuda:0")
 
         output = self._llm.generate(**inputs, max_new_tokens=100)
