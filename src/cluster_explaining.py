@@ -141,14 +141,19 @@ class Explainer:
             "{% endfor %}"
             "{% endfor %}"
         )
-        # Infer the description
         prompt = self._processor.apply_chat_template(
             conversation=conversation,
             chat_template=template,
             add_generation_prompt=True
         )
         inputs = self._processor(images=image, text=prompt, return_tensors="pt").to("cuda:0")
-    
+        # Generating the description
+        with torch.no_grad():
+            output = self._llm.generate(**inputs, max_new_tokens=200)
+        description = self._processor.decode(output[0][len(prompt):], skip_special_tokens=True)
+
+        return description
+
     def _descriptions_similarity(self) -> List[float]:
         """
         Computes the similarity between the descriptions.
