@@ -371,7 +371,7 @@ class ArtworkClusterer:
         sample = train_test_split(embeddings, self.labels, train_size=1000, stratify=self.labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         # Plotting & saving
-        plt.figure(figsize=(9, 12))
+        plt.figure(figsize=(12, 15))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
                     c=sampled_labels, cmap="viridis", s=30, alpha=.7, marker="h")
         plt.scatter(centers[:, 0], centers[:, 1],
