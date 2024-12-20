@@ -340,9 +340,9 @@ class ArtworkClusterer:
             table_ax.axis("off")
             table_plot = table_ax.table(cellText=table, colLabels=headers, loc="bottom",
                                         cellLoc="center", colColours=["lightgray"] * len(headers),
-                                        bbox=[0, -.1, .9, .3])
+                                        bbox=[0, -.3, .9, .3])
             table_plot.auto_set_font_size(False)
-            table_plot.set_fontsize(14)
+            table_plot.set_fontsize(15)
             
             plt.tight_layout()
             plt.savefig(f"{path}_interp{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
@@ -371,11 +371,11 @@ class ArtworkClusterer:
         sample = train_test_split(embeddings, self.labels, train_size=1000, stratify=self.labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
         # Plotting & saving
-        plt.figure(figsize=(10, 10))
+        plt.figure(figsize=(9, 12))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
                     c=sampled_labels, cmap="viridis", s=30, alpha=.7, marker="h")
         plt.scatter(centers[:, 0], centers[:, 1],
-                    c=np.arange(len(self.centers)), cmap="viridis", s=150, marker="X")
+                    c=np.arange(len(self.centers)), cmap="viridis", s=200, marker="x")
         plt.colorbar()
         
         plt.title("Artwork Embedding Space")
