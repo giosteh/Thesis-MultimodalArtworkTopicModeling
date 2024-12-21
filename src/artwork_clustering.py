@@ -25,7 +25,7 @@ import warnings
 
 # Setting some things up
 warnings.filterwarnings("ignore", category=FutureWarning)
-plt.rcParams.update({"font.family": "Liberation Sans"})
+plt.rcParams.update({"font.family": "DejaVu Sans"})
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -322,7 +322,7 @@ class ArtworkClusterer:
         for cluster_label, cluster_df in self._df.groupby("cluster"):
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=0)
             # Plotting & saving
-            fig, axes = plt.subplots(n_samples // 5, 5, figsize=(20, 22))
+            fig, axes = plt.subplots(n_samples // 5, 5, figsize=(20, 27))
             axes = axes.flatten()
             for ax, image_path in zip(axes, sample_images):
                 ax.imshow(Image.open(image_path.strip(",'()")).convert("RGB"))
@@ -340,9 +340,9 @@ class ArtworkClusterer:
             table_ax.axis("off")
             table_plot = table_ax.table(cellText=table, colLabels=headers, loc="bottom",
                                         cellLoc="center", colColours=["lightgray"] * len(headers),
-                                        bbox=[0, -.5, 1, .25])
+                                        bbox=[0, -.2, 1, .23])
             table_plot.auto_set_font_size(False)
-            table_plot.set_fontsize(16)
+            table_plot.set_fontsize(19)
             
             plt.tight_layout()
             plt.savefig(f"{path}_interp{cluster_label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
@@ -375,7 +375,7 @@ class ArtworkClusterer:
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
                     c=sampled_labels, cmap="viridis", s=30, alpha=.7, marker="h")
         plt.scatter(centers[:, 0], centers[:, 1],
-                    c=np.arange(len(self.centers)), cmap="viridis", s=250, marker="x")
+                    c=np.arange(len(self.centers)), cmap="viridis", s=300, marker="x")
         plt.colorbar()
         
         plt.title("Artwork Embedding Space")
@@ -392,9 +392,9 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default="data/finetuned_embeddings.csv")
     parser.add_argument("--signifiers", type=str, default="data/signifiers.pkl")
     parser.add_argument("--method", type=str, default="kmeans")
-    parser.add_argument("--n_terms", type=int, default=5)
+    parser.add_argument("--n_terms", type=int, default=8)
 
-    parser.add_argument("--n_clusters", type=int, default=10)
+    parser.add_argument("--n_clusters", type=int, default=5)
     parser.add_argument("--eps", type=float, default=0.1)
     parser.add_argument("--min_samples", type=int, default=128)
 
