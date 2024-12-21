@@ -149,8 +149,9 @@ class Explainer:
         inputs = self._processor(images=image, text=prompt, return_tensors="pt").to("cuda:0")
         # Generating the description
         with torch.no_grad():
-            output = self._llm.generate(**inputs, max_new_tokens=200)
+            output = self._llm.generate(**inputs, max_new_tokens=100)
         description = self._processor.decode(output[0][len(prompt):], skip_special_tokens=True)
+        # print(description)
 
         return description
 
@@ -178,7 +179,7 @@ if __name__ == "__main__":
     # command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--finetuned_model", type=str, default="models/finetuned-v2.pt")
-    parser.add_argument("--target", type=str, default="results/kmeans05")
+    parser.add_argument("--target", type=str, default="results/kmeans16")
     parser.add_argument("--comprehensive", action="store_true")
 
     args = parser.parse_args()

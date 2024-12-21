@@ -373,9 +373,9 @@ class ArtworkClusterer:
         # Plotting & saving
         plt.figure(figsize=(15, 12))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
-                    c=sampled_labels, cmap="viridis", s=30, alpha=.7, marker="h")
+                    c=sampled_labels, cmap="viridis", s=40, alpha=.7, marker="h")
         plt.scatter(centers[:, 0], centers[:, 1],
-                    c=np.arange(len(self.centers)), cmap="viridis", s=300, marker="x")
+                    c=np.arange(len(self.centers)), cmap="viridis", s=350, marker="x")
         plt.colorbar()
         
         plt.title("Artwork Embedding Space")
@@ -392,7 +392,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default="data/finetuned_embeddings.csv")
     parser.add_argument("--signifiers", type=str, default="data/signifiers.pkl")
     parser.add_argument("--method", type=str, default="kmeans")
-    parser.add_argument("--n_terms", type=int, default=8)
+    parser.add_argument("--n_terms", type=int, default=5)
 
     parser.add_argument("--n_clusters", type=int, default=5)
     parser.add_argument("--eps", type=float, default=0.1)
