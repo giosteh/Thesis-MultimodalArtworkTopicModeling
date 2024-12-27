@@ -366,7 +366,7 @@ class EarlyStopping:
 
     def __init__(self,
                  model: nn.Module,
-                 patience: int = 50,
+                 patience: int = 100,
                  models_dir: str = "models",
                  mode: str = "max"):
         """

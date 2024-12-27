@@ -10,9 +10,10 @@ from clip_finetuning import CLIPFinetuner
 if __name__ == "__main__":
     # command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("-ep", "--epochs", type=int, default=50)
+    parser.add_argument("-ep", "--epochs", type=int, default=200)
     parser.add_argument("-bs", "--batch_size", type=int, default=64)
     parser.add_argument("-lr", "--learning_rate", type=float, default=5e-5)
+    parser.add_argument("--model_name", type=str, default="ViT-B/32")
     parser.add_argument("--augment", action="store_true")
     parser.add_argument("--load", type=str, default=None)
 
@@ -20,7 +21,7 @@ if __name__ == "__main__":
 
     # 1. initialize the finetuner
     finetuner = CLIPFinetuner(
-        model_name="ViT-B/32",
+        model_name=args.model_name,
         batch_size=args.batch_size,
         lr=args.learning_rate,
         augment=args.augment
