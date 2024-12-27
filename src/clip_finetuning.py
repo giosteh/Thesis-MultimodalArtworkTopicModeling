@@ -209,9 +209,9 @@ class CLIPFinetuner:
 
             self._save_model(epoch)
             if verbose:
-                print(f"\nEpoch #{epoch+1}/{tot_epochs} |")
+                print(f"\nEpoch #{epoch+1}/{tot_epochs} [")
                 print(f"Train Loss: {train_loss:.4f}")
-                print(f"Val Loss: {val_loss:.4f}, Val CLIP Score: {val_score:.4f} |")
+                print(f"Val Loss: {val_loss:.4f}, Val CLIP Score: {val_score:.4f} ]")
             # Checking for early stopping
             stop = self._early_stopping(train_loss, val_loss, val_score)
             if stop:
