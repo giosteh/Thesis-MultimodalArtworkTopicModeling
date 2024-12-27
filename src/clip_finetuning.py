@@ -110,6 +110,7 @@ class CLIPFinetuner:
             batch_size (int, optional): The batch size. Defaults to 128.
             lr (float, optional): The learning rate. Defaults to 5e-5.
             augment (bool, optional): Whether to apply augmentations. Defaults to False.
+
             unfreeze_from (int, optional): The number of blocks to unfreeze. Defaults to 6.
             unfreeze_every (int, optional): The number of blocks to unfreeze every time. Defaults to 2.
             models_dir (str, optional): The directory to save the models. Defaults to "models".
@@ -366,7 +367,7 @@ class EarlyStopping:
 
     def __init__(self,
                  model: nn.Module,
-                 patience: int = 100,
+                 patience: int = 80,
                  models_dir: str = "models",
                  mode: str = "max"):
         """
