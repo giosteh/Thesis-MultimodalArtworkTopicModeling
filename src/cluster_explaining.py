@@ -24,8 +24,13 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 BASIC_PROMPT = """
-Given this image containing a sample of artworks from a cluster, generate a few sentences description of the cluster.
-The description should be short and straight to the point, avoiding general information and focusing on the most relevant aspects of the artworks. 
+Given this image containing a sample of artworks from a cluster, generate a single sentence overall description of the cluster which must be short and straight to the point.
+Avoid general information and focus only on the most relevant aspects of the artworks.
+"""
+
+SUBSEQUENT_PROMPT = """
+While generating the description, consider the provided ordered list of terms which describe the cluster.
+Use only the terms you reckon to be relevant and related to the artworks in the image.
 """
 
 
@@ -50,11 +55,13 @@ class Explainer:
         self._descriptions = []
 
         self._llm = LlavaNextForConditionalGeneration.from_pretrained(
-            "llava-hf/llava-v1.6-vicuna-13b-hf",
+            "llava-hf/llava-v1.6-mistral-7b-hf",
             torch_dtype=torch.float16,
             device_map="auto"
         )
-        self._processor = LlavaNextProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-13b-hf")
+        self._llm.config.pad_token_id = self._llm.config.eos_token_id
+
+        self._processor = LlavaNextProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf")
         self._processor.patch_size = 14
         self._processor.vision_feature_select_strategy = "default"
     
@@ -98,12 +105,11 @@ class Explainer:
         if not comprehensive:
             return prompt_text
 
-        prompt_text += """
-            In the description you'll generate, consider using the following ordered lists of terms.\n\n
-        """
+        # Comprehensive prompt
         for group_name, group in zip(self._groups, interp):
             terms = [term for term, _ in group]
             prompt_text += f"{group_name}: {', '.join(terms)}\n"
+        prompt_text += SUBSEQUENT_PROMPT
         return prompt_text
     
     def describe(self, image_path: str, prompt_text: str) -> str:
@@ -128,30 +134,30 @@ class Explainer:
             },
         ]
 
-        template = (
-            "{% for message in messages %}"
-            "{% if message['role'] != 'system' %}"
-            "{{ message['role'].upper() + ': '}}"
-            "{% endif %}"
-            "{% for content in message['content'] | selectattr('type', 'equalto', 'image') %}"
-            "{{ '<image>\n' }}"
-            "{% endfor %}"
-            "{% for content in message['content'] | selectattr('type', 'equalto', 'text') %}"
-            "{{ content['text'] + ' '}}"
-            "{% endfor %}"
-            "{% endfor %}"
-        )
+        # template = (
+        #     "{% for message in messages %}"
+        #     "{% if message['role'] != 'system' %}"
+        #     "{{ message['role'].upper() + ': '}}"
+        #     "{% endif %}"
+        #     "{% for content in message['content'] | selectattr('type', 'equalto', 'text') %}"
+        #     "{{ '<image>\n' }}"
+        #     "{% endfor %}"
+        #     "{% for content in message['content'] | selectattr('type', 'equalto', 'text') %}"
+        #     "{{ content['text'] + ' '}}"
+        #     "{% endfor %}"
+        #     "{% endfor %}"
+        # )
         prompt = self._processor.apply_chat_template(
             conversation=conversation,
-            chat_template=template,
             add_generation_prompt=True
         )
-        inputs = self._processor(images=image, text=prompt, return_tensors="pt").to("cuda:0")
+        inputs = self._processor(image, prompt, return_tensors="pt").to(device)
+
         # Generating the description
         with torch.no_grad():
             output = self._llm.generate(**inputs, max_new_tokens=100)
         description = self._processor.decode(output[0][len(prompt):], skip_special_tokens=True)
-        # print(description)
+        print(description)
 
         return description
 
