@@ -24,13 +24,13 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 BASIC_PROMPT = """
-Given this image containing a sample of artworks from a cluster, generate a single sentence overall description of the cluster which must be short and straight to the point.
+Given this image containing a sample of artworks from a cluster, generate a single sentence overall description of the cluster which must be straight to the point.
 Avoid general information and focus only on the most relevant aspects of the artworks.
 """
 
-SUBSEQUENT_PROMPT = """
-While generating the description, consider the provided ordered list of terms which describe the cluster.
-Use only the terms you reckon to be relevant and related to the artworks in the image.
+RICH_PROMPT = """
+Given this image containing a sample of artworks from a cluster and the following lists of terms which describe it, generate a single sentence overall description of the cluster which must be straight to the point.
+Avoid general information and focus only on the most relevant aspects of the artworks.
 """
 
 
@@ -106,10 +106,11 @@ class Explainer:
             return prompt_text
 
         # Comprehensive prompt
+        prompt_text = RICH_PROMPT
         for group_name, group in zip(self._groups, interp):
-            terms = [term for term, _ in group]
+            terms = [term for term, _ in group[:2]]
             prompt_text += f"{group_name}: {', '.join(terms)}\n"
-        prompt_text += SUBSEQUENT_PROMPT
+        prompt_text += "Do generate a single sentence description one/two terms per list."
         return prompt_text
     
     def describe(self, image_path: str, prompt_text: str) -> str:
@@ -153,13 +154,17 @@ class Explainer:
         )
         inputs = self._processor(image, prompt, return_tensors="pt").to(device)
 
-        # Generating the description
+        # Generating the description from the prompt
         with torch.no_grad():
-            output = self._llm.generate(**inputs, max_new_tokens=100)
-        description = self._processor.decode(output[0][len(prompt):], skip_special_tokens=True)
-        print(description)
+            prompt_ids = self._processor.encode(prompt, return_tensors="pt").to(device)[0]
+            prompt_length = len(prompt_ids)
+            # Actual generation
+            output_ids = self._llm.generate(**inputs, max_new_tokens=100)
 
-        return description
+        description = self._processor.decode(output_ids[0][prompt_length:], skip_special_tokens=True)
+        print("Output: " + description)
+
+        return str(description)
 
     def _descriptions_similarity(self) -> List[float]:
         """
