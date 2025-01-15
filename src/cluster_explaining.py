@@ -30,7 +30,7 @@ Avoid general information and focus only on the most relevant aspects of the art
 
 RICH_PROMPT = """
 Given this image containing a sample of artworks from a cluster and the following lists of terms which describe it, generate a single sentence overall description of the cluster which must be straight to the point.
-Avoid general information and focus only on the most relevant aspects of the artworks.
+Avoid general information and focus only on the most relevant aspects of the artworks.\n
 """
 
 
@@ -61,10 +61,11 @@ class Explainer:
         )
         self._llm.config.pad_token_id = self._llm.config.eos_token_id
 
-        self._processor = LlavaNextProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf")
-        self._processor.patch_size = 14
-        self._processor.vision_feature_select_strategy = "default"
-    
+        self._processor = LlavaNextProcessor.from_pretrained(
+            "llava-hf/llava-v1.6-mistral-7b-hf",
+            vision_feature_select_strategy="default",
+            patch_size=14
+        )
     
     def __call__(self, image_paths: List[str], interps: List[List[Tuple[str, float]]], comprehensive: bool = False) -> None:
         """
@@ -109,8 +110,8 @@ class Explainer:
         prompt_text = RICH_PROMPT
         for group_name, group in zip(self._groups, interp):
             terms = [term for term, _ in group[:2]]
-            prompt_text += f"{group_name}: {', '.join(terms)}\n"
-        prompt_text += "Do generate a single sentence description one/two terms per list."
+            prompt_text += f"{group_name}: {', '.join(terms)};\n"
+        prompt_text += "Do generate a single sentence description using one/two terms per list."
         return prompt_text
     
     def describe(self, image_path: str, prompt_text: str) -> str:
@@ -152,19 +153,15 @@ class Explainer:
             conversation=conversation,
             add_generation_prompt=True
         )
-        inputs = self._processor(image, prompt, return_tensors="pt").to(device)
+        input_ids = self._processor(image, prompt, return_tensors="pt").to(device)
 
-        # Generating the description from the prompt
+        # Actual generation
         with torch.no_grad():
-            prompt_ids = self._processor.encode(prompt, return_tensors="pt").to(device)[0]
-            prompt_length = len(prompt_ids)
-            # Actual generation
-            output_ids = self._llm.generate(**inputs, max_new_tokens=100)
+            output_ids = self._llm.generate(**input_ids, max_new_tokens=100)
+        description = self._processor.decode(output_ids[0], skip_special_tokens=True)
 
-        description = self._processor.decode(output_ids[0][prompt_length:], skip_special_tokens=True)
-        print("Output: " + description)
-
-        return str(description)
+        description = str(description).split("[/INST]")[-1].strip()
+        return description
 
     def _descriptions_similarity(self) -> List[float]:
         """
