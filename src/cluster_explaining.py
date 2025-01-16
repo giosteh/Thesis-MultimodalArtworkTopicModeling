@@ -15,7 +15,7 @@ import pickle
 import glob
 import warnings
 
-# Setting some things up
+# General settings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 

@@ -25,7 +25,7 @@ import glob
 import argparse
 import warnings
 
-# Setting some things up
+# General settings
 warnings.filterwarnings("ignore", category=FutureWarning)
 plt.rcParams.update({"font.family": "DejaVu Sans"})
 
