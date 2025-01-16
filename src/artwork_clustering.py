@@ -12,7 +12,7 @@ from sklearn_extra.cluster import KMedoids
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from umap import UMAP
 
-from clip_finetuning import ImageCaptionDataset
+from clip_finetuning import ImageCaptionDataset, load_model
 from cluster_explaining import Explainer
 
 from typing import List, Dict
@@ -32,30 +32,6 @@ plt.rcParams.update({"font.family": "DejaVu Sans"})
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-
-
-def load_model(base_model: str, model_path: str) -> nn.Module:
-    """
-    Loads the finetuned model.
-
-    Args:
-        base_model (str): The base model to use.
-        model_path (str): The path to the finetuned model.
-
-    Returns:
-        nn.Module: The finetuned model.
-    """
-    model, _ = clip.load(base_model, device=device, jit=False)
-    if not model_path:
-        model.float()
-        model.eval()
-        return model
-    # Loading a finetuned version
-    checkpoint = torch.load(model_path)
-    model.load_state_dict(checkpoint)
-    model.float()
-    model.eval()
-    return model
 
 
 class EmbeddingDatasetBuilder:

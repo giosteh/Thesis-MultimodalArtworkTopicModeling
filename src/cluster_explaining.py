@@ -7,7 +7,7 @@ import torch
 from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
 
 import argparse
-from artwork_clustering import load_model
+from clip_finetuning import load_model
 
 from typing import List, Tuple
 from PIL import Image
