@@ -158,13 +158,13 @@ class Explainer:
             add_generation_prompt=True
         )
         input_ids = self._processor(image, prompt, return_tensors="pt").to(device)
-
         # Actual generation
         with torch.no_grad():
             output_ids = self._llm.generate(**input_ids, max_new_tokens=100)
         description = self._processor.decode(output_ids[0], skip_special_tokens=True)
 
         description = str(description).split("[/INST]")[-1].strip()
+        # printing out the generated description
         print(f"Description: {description}")
         return description
 

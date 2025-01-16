@@ -392,7 +392,6 @@ if __name__ == "__main__":
     parser.add_argument("--signifiers", type=str, default="data/signifiers.pkl")
     parser.add_argument("--method", type=str, default="kmeans")
     parser.add_argument("--n_terms", type=int, default=5)
-
     parser.add_argument("--explain", action="store_true")
 
     parser.add_argument("--n_clusters", type=int, default=5)
