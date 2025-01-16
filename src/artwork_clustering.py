@@ -13,6 +13,7 @@ from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from umap import UMAP
 
 from clip_finetuning import ImageCaptionDataset
+from cluster_explaining import Explainer
 
 from typing import List, Dict
 import matplotlib.pyplot as plt
@@ -20,6 +21,7 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 import pickle
+import glob
 import argparse
 import warnings
 
@@ -271,12 +273,9 @@ class ArtworkClusterer:
         Returns:
             None
         """
-        if isinstance(self._clusterer, KMeans) or isinstance(self._clusterer, KMedoids):
-            self.centers = self._clusterer.cluster_centers_
-        else:
-            # Computing the centers
-            unique_labels = np.unique(self.labels[self.labels != -1])
-            self.centers = [self._embeddings[self.labels == label].mean(axis=0) for label in unique_labels]
+        # Computing the centers
+        unique_labels = np.unique(self.labels[self.labels != -1])
+        self.centers = [self._embeddings[self.labels == label].mean(axis=0) for label in unique_labels]
     
     def _signify_clusters(self, n_terms: int = 5) -> None:
         """
@@ -319,7 +318,7 @@ class ArtworkClusterer:
         """
         self._df["cluster"] = self.labels
 
-        for cluster_label, cluster_df in self._df.groupby("cluster"):
+        for cluster_label, cluster_df in self._df.groupby("cluster", sort=True):
             sample_images = cluster_df["image_path"].sample(n_samples, random_state=0)
             # Plotting & saving
             fig, axes = plt.subplots(n_samples // 5, 5, figsize=(20, 27))
@@ -394,6 +393,8 @@ if __name__ == "__main__":
     parser.add_argument("--method", type=str, default="kmeans")
     parser.add_argument("--n_terms", type=int, default=5)
 
+    parser.add_argument("--explain", action="store_true")
+
     parser.add_argument("--n_clusters", type=int, default=5)
     parser.add_argument("--eps", type=float, default=0.1)
     parser.add_argument("--min_samples", type=int, default=128)
@@ -415,3 +416,17 @@ if __name__ == "__main__":
         eps=args.eps,
         min_samples=args.min_samples
     )
+
+    # 3. explain the clusters
+    if args.explain:
+        with open(f"results/{args.method}{args.n_clusters:02d}.pkl", "rb") as f:
+            interps = pickle.load(f)["interps"]
+        image_paths = sorted(glob.glob(f"results/{args.method}{args.n_clusters:02d}_cluster*.png"))
+
+        explainer = Explainer(
+            model_path=args.finetuned_model
+        )
+        # 3.1 explain with images only
+        explainer(image_paths, interps, path=f"results/descr{args.n_clusters:02d}_images_only")
+        # 3.2 explain with images and terms
+        explainer(image_paths, interps, comprehensive=True, path=f"results/descr{args.n_clusters:02d}_with_terms")

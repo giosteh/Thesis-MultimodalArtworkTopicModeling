@@ -67,7 +67,11 @@ class Explainer:
             patch_size=14
         )
     
-    def __call__(self, image_paths: List[str], interps: List[List[Tuple[str, float]]], comprehensive: bool = False) -> None:
+    def __call__(self,
+                 image_paths: List[str],
+                 interps: List[List[Tuple[str, float]]],
+                 comprehensive: bool = False,
+                 path: str = "results/descriptions") -> None:
         """
         Explains the given interpretations.
 
@@ -85,7 +89,7 @@ class Explainer:
         self._descriptions = [self.describe(path, text) for path, text in zip(self._image_paths, self._prompts)]
 
         # Saving the results
-        with open("results/descriptions.pkl", "wb") as f:
+        with open(f"{path}.pkl", "wb") as f:
             pickle.dump({
                 "descriptions": self._descriptions,
                 "similarity": self._descriptions_similarity()
@@ -161,6 +165,7 @@ class Explainer:
         description = self._processor.decode(output_ids[0], skip_special_tokens=True)
 
         description = str(description).split("[/INST]")[-1].strip()
+        print(f"Description: {description}")
         return description
 
     def _descriptions_similarity(self) -> List[float]:
