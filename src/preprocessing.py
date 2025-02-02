@@ -5,9 +5,6 @@ Classes and functions for processing data.
 import clip
 import torch
 import torchvision.transforms as T
-
-# import nltk
-# nltk.download("wordnet")
 from nltk.corpus import wordnet as wn
 from typing import Callable, Dict, List
 from rdflib import Graph

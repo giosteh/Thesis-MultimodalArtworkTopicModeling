@@ -40,6 +40,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class EmbeddingDatasetBuilder:
+
     def __init__(self,
                  base_model: str = "ViT-B/32",
                  model_path: str = "models/finetuned-v2.pt",
@@ -57,6 +58,7 @@ class EmbeddingDatasetBuilder:
         self._finetuned_model = load_model(base_model, model_path)
         self._paths_loader = DataLoader(paths_dataset, batch_size=1, shuffle=False)
         self._data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+
 
     def __call__(self) -> pd.DataFrame:
         """

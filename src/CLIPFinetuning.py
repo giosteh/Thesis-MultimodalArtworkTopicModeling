@@ -8,10 +8,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
-# Seed for reproducibility
-torch.manual_seed(42)
-torch.cuda.manual_seed(42)
-
 from typing import Tuple
 from PIL import Image
 import argparse
@@ -19,6 +15,10 @@ import pickle
 import os
 
 from preprocessing import ImageAugmenter, TextAugmenter
+
+# Setting the seed
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
