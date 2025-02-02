@@ -9,13 +9,9 @@ import torchvision.transforms as T
 # import nltk
 # nltk.download("wordnet")
 from nltk.corpus import wordnet as wn
-
-
+from typing import Callable, Dict, List
 from rdflib import Graph
-
-from typing import Callable, List, Dict
 import random
-import os
 import re
 
 

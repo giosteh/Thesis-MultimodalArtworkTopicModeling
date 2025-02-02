@@ -8,17 +8,17 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
-
 # Seed for reproducibility
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
 
 from typing import Tuple
 from PIL import Image
+import argparse
 import pickle
 import os
 
-from processing import ImageAugmenter, TextAugmenter
+from preprocessing import ImageAugmenter, TextAugmenter
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -489,3 +489,28 @@ class EarlyStopping:
         data = (self._train_loss, self._val_loss, self._val_scores)
         with open(os.path.join(self._models_dir, "tracking.pkl"), "wb") as f:
             pickle.dump(data, f)
+
+
+
+if __name__ == "__main__":
+    # command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-ep", "--epochs", type=int, default=200)
+    parser.add_argument("-bs", "--batch_size", type=int, default=64)
+    parser.add_argument("-lr", "--learning_rate", type=float, default=5e-5)
+    parser.add_argument("--model_name", type=str, default="ViT-B/32")
+    parser.add_argument("--augment", action="store_true")
+    parser.add_argument("--load", type=str, default=None)
+    args = parser.parse_args()
+
+    # 1. initialize the finetuner
+    finetuner = CLIPFinetuner(
+        model_name=args.model_name,
+        batch_size=args.batch_size,
+        lr=args.learning_rate,
+        augment=args.augment
+    )
+    if args.load:
+        finetuner.load_model(args.load)
+
+    finetuner.train(epochs=args.epochs, verbose=True)
