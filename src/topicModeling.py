@@ -181,6 +181,9 @@ class TopicModeler:
             self._probs = self._cluster_model[method].probabilities_
         self._compute_centers()
         print(f"Found {self._nr_topics} topics!\n")
+        # Percentage of noise
+        noise_perc = len(self._labels[self._labels == -1]) / len(self._labels)
+        print(f"Noise percentage: {noise_perc*100:.2f}")
 
         # Extracting the topics
         self._extract_topics()
@@ -317,7 +320,7 @@ class TopicModeler:
                 bbox=[0, -.2, 1, .23]
             )
             table_plot.auto_set_font_size(False)
-            table_plot.set_fontsize(19)
+            table_plot.set_fontsize(20)
 
             plt.tight_layout()
             plt.savefig(f"results/topic{label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
@@ -339,7 +342,9 @@ class TopicModeler:
         embeddings_2d = umap_2d.fit_transform(self._embeddings)
         centers_2d = umap_2d.transform(self._centers)
         # Considering a sample for visualization
-        sample = train_test_split(embeddings_2d, self._labels, train_size=.01, stratify=self._labels, random_state=42)
+        embeddings_filtered = embeddings_2d[self._labels != -1]
+        labels_filtered = self._labels[self._labels != -1]
+        sample = train_test_split(embeddings_filtered, labels_filtered, train_size=.01, stratify=labels_filtered, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
 
         plt.figure(figsize=(17, 12))
