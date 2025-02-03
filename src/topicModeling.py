@@ -256,7 +256,7 @@ class TopicModeler:
         for i in range(self._nr_topics):
             topic = []
             for j in range(len(self._topics)):
-                theme = [t for t, _ in self._topics[j][i]]
+                theme = [w for w, _ in self._topics[j][i]]
                 topic.extend(theme)
             topics.append(topic)
         
