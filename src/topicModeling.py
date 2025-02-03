@@ -9,27 +9,26 @@ import glob
 import clip
 import torch
 from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import silhouette_score
+from sklearn.model_selection import train_test_split
 from octis.evaluation_metrics.diversity_metrics import TopicDiversity
+from CLIPFinetuning import ImageCaptionDataset, load_model
 from scipy.sparse import SparseEfficiencyWarning
+from numba.core.errors import NumbaWarning
 from sklearn.cluster import KMeans, DBSCAN
-from typing import Tuple, List, Dict
-import matplotlib.font_manager as fm
+from LLMExplaining import Explainer
 import matplotlib.pyplot as plt
+from typing import Tuple, List
 from umap import UMAP
 from PIL import Image
 import pandas as pd
 import numpy as np
 import hdbscan
-import numba
 
-from CLIPFinetuning import ImageCaptionDataset, load_model
-from LLMExplaining import Explainer
 
 # General settings
-numba.set_num_threads(1)
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
+warnings.filterwarnings("ignore", category=NumbaWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 plt.rcParams.update({"font.family": "Lato"})
@@ -260,9 +259,9 @@ class TopicModeler:
         # Merging the themes for each topic
         for i in range(self._nr_topics):
             topic = []
-            for j in range(len(self._topics)):
-                theme = [w for w, _ in self._topics[j][i]]
-                topic.extend(theme)
+            for theme in self._topics:
+                words = [w for w, _ in theme[i]]
+                topic.extend(words)
             topics.append(topic)
         
         output_tm = {"topics": topics}
