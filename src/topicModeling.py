@@ -248,7 +248,7 @@ class TopicModeler:
 
     def _evaluate_topics(self) -> None:
         """
-        Evaluates the topics in terms of diversity.
+        Evaluates the topics computing the topic diversity.
 
         Returns:
             None
