@@ -2,16 +2,14 @@
 Classes and functions for explaining the clusters using LLMs.
 """
 
-import clip
-import torch
 from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
 from CLIPFinetuning import load_model
 from typing import List, Tuple
 from PIL import Image
 import warnings
-import argparse
 import pickle
-import glob
+import clip
+import torch
 
 # General settings
 warnings.filterwarnings("ignore", category=FutureWarning)

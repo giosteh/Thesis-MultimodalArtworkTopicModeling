@@ -2,12 +2,6 @@
 Classes and functions for topic modeling of artworks.
 """
 
-import warnings
-import argparse
-import pickle
-import glob
-import clip
-import torch
 from torch.utils.data import DataLoader
 from sklearn.metrics import silhouette_score
 from sklearn.model_selection import train_test_split
@@ -24,6 +18,12 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 import hdbscan
+import warnings
+import argparse
+import pickle
+import glob
+import clip
+import torch
 
 
 # General settings
