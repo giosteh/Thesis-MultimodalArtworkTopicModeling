@@ -30,6 +30,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 plt.rcParams.update({"font.family": "Lato"})
 
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
