@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import silhouette_score
 from octis.evaluation_metrics.diversity_metrics import TopicDiversity
+from scipy.sparse import SparseEfficiencyWarning
 from sklearn.cluster import KMeans, DBSCAN
 from typing import Tuple, List, Dict
 import matplotlib.font_manager as fm
@@ -21,11 +22,14 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 import hdbscan
+import numba
 
 from CLIPFinetuning import ImageCaptionDataset, load_model
 from LLMExplaining import Explainer
 
 # General settings
+numba.set_num_threads(1)
+warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 plt.rcParams.update({"font.family": "Lato"})
