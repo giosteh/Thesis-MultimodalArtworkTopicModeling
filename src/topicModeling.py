@@ -10,7 +10,7 @@ import clip
 import torch
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import silhouette_score, calinski_harabasz_score
+from sklearn.metrics import silhouette_score
 from octis.evaluation_metrics.diversity_metrics import TopicDiversity
 from sklearn.cluster import KMeans, DBSCAN
 from typing import Tuple, List, Dict
@@ -27,13 +27,8 @@ from LLMExplaining import Explainer
 
 # General settings
 warnings.filterwarnings("ignore", category=FutureWarning)
-
-font_path = "utils/JetBrainsMono-Regular.ttf"
-font_prop = fm.FontProperties(fname=font_path)
-font_name = font_prop.get_name()
-
-plt.rcParams["font.family"] = font_name
-
+warnings.filterwarnings("ignore", category=UserWarning)
+plt.rcParams.update({"font.family": "Lato"})
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -62,7 +57,7 @@ class EmbeddingDatasetBuilder:
 
     def __call__(self) -> pd.DataFrame:
         """
-        Builds the embedding dataset.
+        Builds the embedding dataset to use for topic modeling.
         
         Returns:
             pd.DataFrame: The embedding dataset.
@@ -74,17 +69,14 @@ class EmbeddingDatasetBuilder:
                 features = {}
                 image_path, _ = paths
                 image, text = data
-                image, text = image.to(device), clip.tokenize(text).to(device)
 
-                features["image_path"] = image_path.strip(",'()")
-                features["text"] = text
-                # Adding the image embedding
-                image_embedding = self._finetuned_model.encode_image(image)
+                features["image_path"] = str(image_path).strip(",'()")
+                features["text"] = str(text)
+                image_embedding = self._finetuned_model.encode_image(image.to(device))
                 image_embedding = image_embedding.cpu().numpy().flatten()
                 features["embedding"] = np.array2string(image_embedding, np.inf, separator=",")
 
                 rows.append(features)
-
         return pd.DataFrame(rows)
 
 
@@ -135,6 +127,7 @@ class TopicModeler:
         self._cluster_model = {
             "kmeans": KMeans(
                 n_clusters=nr_topics,
+                init="k-means++",
                 n_init=10,
                 max_iter=10000,
                 random_state=42
@@ -172,9 +165,10 @@ class TopicModeler:
             None
         """
         method = method.lower()
-        embeddings = self._embeddings
         if reduce:
             embeddings = self._umap_model.fit_transform(self._embeddings)
+        else:
+            embeddings = self._embeddings
         
         # Fitting the cluster model
         self._cluster_model[method].fit(embeddings)
@@ -182,11 +176,14 @@ class TopicModeler:
         if method == "hdbscan":
             self._probs = self._cluster_model[method].probabilities_
         self._compute_centers()
+        print(f"Found {self._nr_topics} topics!\n")
 
         # Extracting the topics
         self._extract_topics()
         self._evaluate_topics()
 
+        print(f"Topic diversity: {self._scores['topic_diversity']:.4f}")
+        print(f"Silhouette score: {self._scores['silhouette']:.4f}")
         # Saving & visualizing the results
         self._save_results()
         self._visualize_topics()
@@ -199,7 +196,11 @@ class TopicModeler:
         Returns:
             None
         """
-        unique_labels = np.unique(self._labels[self._labels != -1])
+        labels_filtered = self._labels[self._labels != -1]
+        embeddings_filtered = self._embeddings[self._labels != -1]
+
+        unique_labels = np.unique(labels_filtered)
+        self._nr_topics = len(unique_labels)
         weighted = True if self._probs is not None else False
 
         for l in unique_labels:
@@ -207,8 +208,14 @@ class TopicModeler:
             center = self._embeddings[mask].mean(axis=0)
             if weighted:
                 center = np.average(self._embeddings[mask], weights=self._probs[mask], axis=0)
-            
             self._centers.append(center)
+        
+        # Computing the silhouette score
+        if len(unique_labels) < 2:
+            self._scores["silhouette"] = None
+            return
+        score = silhouette_score(embeddings_filtered, labels_filtered)
+        self._scores["silhouette"] = score
 
     def _extract_topics(self) -> None:
         """
@@ -237,25 +244,25 @@ class TopicModeler:
 
     def _evaluate_topics(self) -> None:
         """
-        Evaluates the topics.
+        Evaluates the topics in terms of diversity.
 
         Returns:
             None
         """
-        diversity = TopicDiversity(topk=self._top_n_words)
-        scores = []
-        for i, theme in enumerate(self._topics):
-            topics = [
-                [w for w, _ in topic] for topic in theme
-            ]
-            output_tm = {"topics": topics}
-            score = diversity.score(output_tm)
-            scores.append(score)
-            print(f"TD for theme {i+1}: {score:.4f}")
+        topk_words = self._top_n_words * len(self._topics)
+        diversity = TopicDiversity(topk=topk_words)
+        topics = []
+        # Merging the themes for each topic
+        for i in range(self._nr_topics):
+            topic = []
+            for j in range(len(self._topics)):
+                topic.extend(self._topics[j][i])
+            topics.append(topic)
         
-        print(f"Average TD: {np.mean(scores):.4f}")
-        self._scores["TD"] = scores
-    
+        output_tm = {"topics": topics}
+        score = diversity.score(output_tm)
+        self._scores["topic_diversity"] = score
+
     def _save_results(self) -> None:
         """
         Saves the results.
@@ -291,7 +298,7 @@ class TopicModeler:
             # Adding the topic table
             topic = [t[label] for t in self._topics]
             headers = [n.capitalize() for n in self._theme_names]
-            table = [[f"{t.lower()} ({v:.2f})" for t, v in theme] for theme in topic]
+            table = [[f"{t.upper()} ({v:.2f})" for t, v in theme] for theme in topic]
             table = list(map(list, zip(*table)))
 
             table_ax = fig.add_subplot(111, frame_on=False)
@@ -305,7 +312,7 @@ class TopicModeler:
                 bbox=[0, -.2, 1, .23]
             )
             table_plot.auto_set_font_size(False)
-            table_plot.set_fontsize(18)
+            table_plot.set_fontsize(19)
 
             plt.tight_layout()
             plt.savefig(f"results/topic{label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
@@ -320,8 +327,7 @@ class TopicModeler:
         """
         umap_2d = UMAP(
             n_neighbors=15,
-            min_dist=.0,
-            spread=1.5,
+            min_dist=.01,
             metric="cosine",
             random_state=42
         )
@@ -333,9 +339,9 @@ class TopicModeler:
 
         plt.figure(figsize=(17, 12))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
-                    c=sampled_labels, cmap="viridis", s=45, marker="o")
+                    c=sampled_labels, cmap="viridis", s=40, marker="o")
         plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=np.arange(len(self._centers)),
-                    cmap="viridis", s=380, marker="x")
+                    cmap="viridis", s=450, marker="x")
         plt.colorbar()
 
         plt.tight_layout()
