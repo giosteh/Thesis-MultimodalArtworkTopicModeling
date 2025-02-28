@@ -84,24 +84,24 @@ class EmbeddingDatasetBuilder:
         return pd.DataFrame(rows)
 
 
-class TopicModeler:
+class TopicModel:
 
     def __init__(self,
                  embedding_model: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt"),
                  embeddings_path: str = "data/finetuned_embeddings.csv",
                  vocabulary_path: str = "data/topic_vocab.pkl",
-                 theme_names: List[str] = ["Genre", "Subject", "Medium", "Style"],
+                 pov_names: List[str] = ["Genre", "Subject", "Medium", "Style"],
                  min_topic_size: int = 20,
                  top_n_words: int = 5,
                  nr_topics: int = 10) -> None:
         """
-        Initializes the TopicModeler.
+        Initializes the TopicModel.
         
         Args:
             embedding_model (Tuple[str, str]): The embedding model to use. Defaults to ("ViT-B/32", "models/finetuned-v2.pt").
             embeddings_path (str): The path to the embeddings csv. Defaults to "data/finetuned_embeddings.csv".
             vocabulary_path (str): The path to the vocabulary pickle. Defaults to "data/topic_vocab.pkl".
-            theme_names (List[str]): The theme names. Defaults to ["Genre", "Subject", "Medium", "Style"].
+            pov_names (List[str]): The pov names. Defaults to ["Genre", "Subject", "Medium", "Style"].
             min_topic_size (int): The minimum topic size. Defaults to 20.
             top_n_words (int): The number of top words to use. Defaults to 5.
             nr_topics (int): The number of topics to find. Defaults to 10.
@@ -116,16 +116,16 @@ class TopicModeler:
         X_normalized = X_torch / X_torch.norm(dim=-1, keepdim=True)
         self._embeddings = X_normalized.cpu().numpy()
 
-        # Loading the topic vocabulary
-        self._topic_words, self._topic_phrases = pickle.load(open(vocabulary_path, "rb"))
+        self._topic_words, self._topic_sentences = pickle.load(open(vocabulary_path, "rb"))
         self._min_topic_size = min_topic_size
         self._top_n_words = top_n_words
         self._nr_topics = nr_topics
+        self._pov_names = pov_names
 
-        self._theme_names = theme_names
         self._labels, self._probs = None, None
         self._centers, self._topics = [], []
         self._scores = {}
+        self._top_images = None
 
         # Initializing the cluster model
         self._cluster_model = {
@@ -177,24 +177,21 @@ class TopicModeler:
         # Fitting the cluster model
         self._cluster_model[method].fit(embeddings)
         self._labels = self._cluster_model[method].labels_
+        self._embeddings_df["label"] = self._labels
         if method == "hdbscan":
             self._probs = self._cluster_model[method].probabilities_
         self._compute_centers()
         print(f"Found {self._nr_topics} topics!\n")
         # Percentage of noise
         noise_perc = len(self._labels[self._labels == -1]) / len(self._labels)
-        print(f"Noise percentage: {noise_perc*100:.2f}")
+        print(f"Noise: {noise_perc*100:.2f}%\n")
 
-        # Extracting the topics
         self._extract_topics()
         self._evaluate_topics()
-
-        print(f"Topic diversity: {self._scores['topic_diversity']:.4f}")
-        print(f"Silhouette score: {self._scores['silhouette']:.4f}")
-        # Saving & visualizing the results
+        # Saving the results and visualizing
         self._save_results()
-        self._visualize_topics()
-        self._visualize_embeddings()
+        self._view_topics()
+        self._view_latent_space()
     
     def _compute_centers(self) -> None:
         """
@@ -231,23 +228,28 @@ class TopicModeler:
         Returns:
             None
         """
+        topics = []
         with torch.no_grad():
-            for words, phrases in zip(self._topic_words, self._topic_phrases):
-                phrases = clip.tokenize([p.lower() for p in phrases]).to(device)
-                phrases = self._embedding_model.encode_text(phrases)
-                phrases = phrases / phrases.norm(dim=-1, keepdim=True)
+            for words, sentences in zip(self._topic_words, self._topic_sentences):
+                sentences = clip.tokenize([p.lower() for p in sentences]).to(device)
+                sentences = self._embedding_model.encode_text(sentences)
+                sentences = sentences / sentences.norm(dim=-1, keepdim=True)
 
-                theme = []
+                pov = []
                 # Computing the cosine similarity with each cluster center
                 for center in self._centers:
                     center = torch.from_numpy(center).float().to(device)
-                    similarity = center @ phrases.t()
-
+                    similarity = center @ sentences.t()
+                    # Selecting the top n words
                     values, indices = similarity.topk(self._top_n_words)
                     topic = [(words[i], v.item()) for i, v in zip(indices, values)]
-                    theme.append(topic)
-
-                self._topics.append(theme)
+                    pov.append(topic)
+                topics.append(pov)
+        # Rearranging each topic povs into a single list
+        self._topics = [
+            [word for pov in topics for word, _ in pov[i]]
+            for i in range(self._nr_topics)
+        ]
 
     def _evaluate_topics(self) -> None:
         """
@@ -256,20 +258,17 @@ class TopicModeler:
         Returns:
             None
         """
-        topk_words = self._top_n_words * len(self._topics)
-        diversity = TopicDiversity(topk=topk_words)
-        topics = []
-        # Merging the themes for each topic
-        for i in range(self._nr_topics):
-            topic = []
-            for theme in self._topics:
-                words = [w for w, _ in theme[i]]
-                topic.extend(words)
-            topics.append(topic)
-        
-        output_tm = {"topics": topics}
-        score = diversity.score(output_tm)
-        self._scores["topic_diversity"] = score
+        topk_words = self._top_n_words * len(self._pov_names)
+        metrics = {
+            "topic_diversity": TopicDiversity(topk=topk_words)
+        }
+
+        model_output = {"topics": self._topics}
+        # Computing the metrics
+        for metric_name, metric in metrics.items():
+            score = metric.score(model_output)
+            self._scores[metric_name] = score
+            print(f"{metric_name}: {score:.4f}")
 
     def _save_results(self) -> None:
         """
@@ -278,55 +277,65 @@ class TopicModeler:
         Returns:
             None
         """
-        saving = {
-            "topics": self._topics,
-            "scores": self._scores
-        }
-        with open(f"results/topic_modeling.pkl", "wb") as f:
+        saving = {"topics": self._topics, "scores": self._scores}
+        with open(f"results/TM.pkl", "wb") as f:
             pickle.dump(saving, f)
     
-    def _visualize_topics(self) -> None:
+    def _get_top_images(self, nr_images: int = 20) -> None:
+        """
+        Gets the most representative images for each topic.
+        
+        Args:
+            nr_images (int): The number of images to get. Defaults to 20.
+        
+        Returns:
+            None
+        """
+        centers = np.array(self._centers)
+        images_similarity = self._embeddings @ centers.T
+        row_idx = np.arange(len(images_similarity))
+        # Adding the similarity column for each image
+        self._embeddings_df["similarity"] = images_similarity[row_idx, self._embeddings_df["label"]]
+        df = self._embeddings_df.copy()
+        # Getting the top images for each topic
+        self._top_images = (
+            df.groupby("label", group_keys=False)
+            .apply(lambda x: x.nlargest(nr_images, "similarity")["image_path"].tolist(), include_groups=False)
+            .tolist()
+        )
+
+    def _view_topics(self) -> None:
         """
         Visualizes a sample for each topic.
 
         Returns:
             None
         """
-        self._embeddings_df["label"] = self._labels
-        
-        for label, df in self._embeddings_df.groupby("label"):
-            sample = df["image_path"].sample(20, random_state=0)
-            fig, axes = plt.subplots(4, 5, figsize=(20, 27))
+        self._get_top_images()
+        for label in np.unique(self._labels):
+            images = self._top_images[label]
+            fig, axes = plt.subplots(4, 5, figsize=(20, 26))
             axes = axes.flatten()
-            for ax, image_path in zip(axes, sample):
+            for ax, image_path in zip(axes, images):
                 ax.imshow(Image.open(image_path).convert("RGB"))
                 ax.axis("off")
             plt.tight_layout()
-            plt.savefig(f"results/sample{label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
-            # Adding the topic table
-            topic = [t[label] for t in self._topics]
-            headers = [n.capitalize() for n in self._theme_names]
-            table = [[f"{t.upper()} ({v:.2f})" for t, v in theme] for theme in topic]
-            table = list(map(list, zip(*table)))
+            # Adding a text box
+            fig.subplots_adjust(bottom=.2)
+            text_ax = fig.add_axes([0.05, 0.05, 0.9, 0.1])
 
-            table_ax = fig.add_subplot(111, frame_on=False)
-            table_ax.axis("off")
-            table_plot = table_ax.table(
-                cellText=table,
-                colLabels=headers,
-                cellLoc="center",
-                loc="bottom",
-                colColours=["lightgray"] * len(headers),
-                bbox=[0, -.2, 1, .23]
+            povs = np.array_split(self._topics[label], len(self._pov_names))
+            text_content = "\n\n".join(
+                f"{pov_name.upper()} : " + ", ".join(povs[i])
+                for i, pov_name in enumerate(self._pov_names)
             )
-            table_plot.auto_set_font_size(False)
-            table_plot.set_fontsize(20)
-
-            plt.tight_layout()
+            text_ax.text(0, 1, text_content, fontsize=24, ha="left", va="top",
+                         bbox=dict(boxstyle="square,pad=1.2", facecolor="#f5f5f5"))
+            text_ax.axis("off")
             plt.savefig(f"results/topic{label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
             plt.close()
 
-    def _visualize_embeddings(self) -> None:
+    def _view_latent_space(self) -> None:
         """
         Visualizes the embeddings in a 2D space.
 
@@ -341,17 +350,17 @@ class TopicModeler:
         )
         embeddings_2d = umap_2d.fit_transform(self._embeddings)
         centers_2d = umap_2d.transform(self._centers)
+        topics_range = np.arange(self._nr_topics)
         # Considering a sample for visualization
-        embeddings_filtered = embeddings_2d[self._labels != -1]
-        labels_filtered = self._labels[self._labels != -1]
-        sample = train_test_split(embeddings_filtered, labels_filtered, train_size=.01, stratify=labels_filtered, random_state=42)
+        embeddings = embeddings_2d[self._labels != -1]
+        labels = self._labels[self._labels != -1]
+        sample = train_test_split(embeddings, labels, train_size=.01, stratify=labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
 
         plt.figure(figsize=(17, 12))
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
-                    c=sampled_labels, cmap="viridis", s=40, marker="o")
-        plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=np.arange(len(self._centers)),
-                    cmap="viridis", s=450, marker="x")
+                    c=sampled_labels, cmap="plasma", s=40, marker="o")
+        plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=topics_range, cmap="plasma", s=400, marker="x")
         plt.colorbar()
 
         plt.tight_layout()
@@ -366,8 +375,8 @@ if __name__ == "__main__":
     parser.add_argument("--embedding_model", type=str, default="ViT-B/32;models/finetuned-v2.pt")
     parser.add_argument("--embeddings_path", type=str, default="data/finetuned_embeddings.csv")
     parser.add_argument("--vocabulary_path", type=str, default="data/topic_vocab.pkl")
-    parser.add_argument("--min_topic_size", type=int, default=20)
-    parser.add_argument("--top_n_words", type=int, default=5)
+    parser.add_argument("--min_topic_size", type=int, default=25)
+    parser.add_argument("--top_n_words", type=int, default=3)
     parser.add_argument("--nr_topics", type=int, default=10)
 
     parser.add_argument("--method", type=str, default="kmeans")
@@ -376,8 +385,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # 1. initialize the topic modeler
-    topic_modeler = TopicModeler(
+    # 1. initialize the topic model
+    topic_modeler = TopicModel(
         embedding_model=args.embedding_model.split(";"),
         embeddings_path=args.embeddings_path,
         vocabulary_path=args.vocabulary_path,
@@ -386,7 +395,7 @@ if __name__ == "__main__":
         nr_topics=args.nr_topics
     )
 
-    # 2. fit the topic modeler
+    # 2. fit the topic model
     topic_modeler.fit(method=args.method, reduce=args.reduce)
 
     if args.explain:
@@ -394,7 +403,6 @@ if __name__ == "__main__":
         explainer = Explainer(
             embedding_model=args.embedding_model.split(";")
         )
-
         with open("results/topic_modeling.pkl", "rb") as f:
             topics = pickle.load(f)["topics"]
         sample_paths = sorted(glob.glob("results/sample*.png"))
