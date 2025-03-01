@@ -45,8 +45,7 @@ class EmbeddingDatasetBuilder:
                  model_path: str = "models/finetuned-v2.pt",
                  paths_dataset: ImageCaptionDataset = ImageCaptionDataset(path_only=True),
                  dataset: ImageCaptionDataset = ImageCaptionDataset()) -> None:
-        """
-        Initializes the EmbeddingDatasetBuilder.
+        """Initializes the EmbeddingDatasetBuilder.
         
         Args:
             base_model (str): The base model to use. Defaults to "ViT-B/32".
@@ -60,8 +59,7 @@ class EmbeddingDatasetBuilder:
 
 
     def __call__(self) -> pd.DataFrame:
-        """
-        Builds the embedding dataset to use for topic modeling.
+        """Builds the embedding dataset to use for topic modeling.
         
         Returns:
             pd.DataFrame: The embedding dataset.
@@ -94,8 +92,7 @@ class TopicModel:
                  min_topic_size: int = 20,
                  top_n_words: int = 5,
                  nr_topics: int = 10) -> None:
-        """
-        Initializes the TopicModel.
+        """Initializes the TopicModel.
         
         Args:
             embedding_model (Tuple[str, str]): The embedding model to use. Defaults to ("ViT-B/32", "models/finetuned-v2.pt").
@@ -158,8 +155,7 @@ class TopicModel:
     
 
     def fit(self, method: str = "kmeans", reduce: bool = True) -> None:
-        """
-        Fits the topic modeler.
+        """Fits the topic modeler.
         
         Args:
             method (str): The clustering method to use. Defaults to "kmeans".
@@ -194,8 +190,7 @@ class TopicModel:
         self._view_latent_space()
     
     def _compute_centers(self) -> None:
-        """
-        Computes the cluster centers according to the clustering method.
+        """Computes the cluster centers according to the clustering method.
 
         Returns:
             None
@@ -206,7 +201,7 @@ class TopicModel:
         unique_labels = np.unique(labels_filtered)
         self._nr_topics = len(unique_labels)
         weighted = True if self._probs is not None else False
-
+        # Computing the cluster centers
         for l in unique_labels:
             mask = (self._labels == l)
             center = self._embeddings[mask].mean(axis=0)
@@ -222,8 +217,7 @@ class TopicModel:
         self._scores["silhouette"] = score
 
     def _extract_topics(self) -> None:
-        """
-        Extracts the topics from the cluster centers.
+        """Extracts the topics from the cluster centers.
 
         Returns:
             None
@@ -251,9 +245,16 @@ class TopicModel:
             for i in range(self._nr_topics)
         ]
 
-    def _evaluate_topics(self) -> None:
+    def _merge_topics(self) -> None:
+        """Merges the least common topics until there are only self._nr_topics topics.
+
+        Returns:
+            None
         """
-        Evaluates the topics computing the topic diversity.
+        pass
+
+    def _evaluate_topics(self) -> None:
+        """Evaluates the topics computing the topic diversity.
 
         Returns:
             None
@@ -271,8 +272,7 @@ class TopicModel:
             print(f"{metric_name}: {score:.4f}")
 
     def _save_results(self) -> None:
-        """
-        Saves the results.
+        """Saves the results.
 
         Returns:
             None
@@ -282,8 +282,7 @@ class TopicModel:
             pickle.dump(saving, f)
     
     def _get_top_images(self, nr_images: int = 20) -> None:
-        """
-        Gets the most representative images for each topic.
+        """Gets the most representative images for each topic.
         
         Args:
             nr_images (int): The number of images to get. Defaults to 20.
@@ -305,8 +304,7 @@ class TopicModel:
         )
 
     def _view_topics(self) -> None:
-        """
-        Visualizes a sample for each topic.
+        """Visualizes the top images and top terms for each topic.
 
         Returns:
             None
@@ -336,8 +334,7 @@ class TopicModel:
             plt.close()
 
     def _view_latent_space(self) -> None:
-        """
-        Visualizes the embeddings in a 2D space.
+        """Visualizes the embeddings in a 2D space.
 
         Returns:
             None

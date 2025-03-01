@@ -19,8 +19,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 class PromptBuilder:
 
     def __init__(self, captions_file: str = "data/artwork_captions.txt") -> None:
-        """
-        Initializes the prompt builder.
+        """Initializes the prompt builder.
 
         Args:
             captions_file (str): The file containing the captions. Defaults to "data/artwork_captions.txt".
@@ -62,8 +61,7 @@ class PromptBuilder:
         """
     
     def _build_prompt(self, individual: Dict[str, str], tags_list: List[str]) -> str:
-        """
-        Builds a prompt for the given artwork, using the information from the SPARQL query.
+        """Builds a prompt for the given artwork, using the information from the SPARQL query.
         
         The prompt is built by concatenating the following strings:
         - genre (if present)
@@ -116,13 +114,10 @@ class PromptBuilder:
         return prompt.strip()
 
     def __call__(self, kg_path: str = "data/artgraph-rdf/artgraph-facts.ttl") -> None:
-        """
-        Builds the captions file by querying the knowledge graph at the given path,
-        and writing each artwork with its corresponding prompt to the file.
+        """Builds the captions file by querying the knowledge graph at the given path.
 
         Args:
-            kg_path: The path to the knowledge graph file. Defaults to
-                "data/artgraph-rdf/artgraph-facts.ttl".
+            kg_path: The path to the KG file. Defaults to "data/artgraph-rdf/artgraph-facts.ttl".
 
         Returns:
             None
@@ -163,16 +158,14 @@ class PromptBuilder:
 class ImageAugmenter:
     
     def __init__(self) -> None:
-        """
-        Initializes the image augmenter.
+        """Initializes the image augmenter.
         """
         _, self._clip_preprocess = clip.load("ViT-B/32", device=device, jit=False)
         self._augment = self._random_augmentation()
 
 
     def __call__(self, image: torch.Tensor, prob: float = 1.0) -> torch.Tensor:
-        """
-        Randomly applies the defined image augmentation pipeline to an input image.
+        """Randomly applies the defined image augmentation pipeline to an input image.
 
         Args:
             image (torch.Tensor): An image tensor
@@ -187,8 +180,7 @@ class ImageAugmenter:
         return image
 
     def _random_augmentation(self) -> T.Compose:
-        """
-        Generates a random augmentation pipeline.
+        """Generates a random augmentation pipeline.
 
         The pipeline is composed of a sequence of randomly chosen transforms,
         which are the following:
@@ -219,8 +211,7 @@ class ImageAugmenter:
         return augmentation
 
     def _gaussian_noise(self, image: torch.Tensor, mean: float = .0, std: float = .02) -> torch.Tensor:
-        """
-        Add Gaussian noise to an image.
+        """Adds Gaussian noise to an image.
 
         Args:
             image (torch.Tensor): Input image (Tensor)
@@ -237,15 +228,13 @@ class ImageAugmenter:
 class TextAugmenter:
     
     def __init__(self) -> None:
-        """
-        Initializes the text augmenter.
+        """Initializes the text augmenter.
         """
         self._augment = self._random_augmentation()
     
 
     def __call__(self, text: str, prob: float = 1.0) -> str:
-        """
-        Randomly applies the defined text augmentation pipeline to an input text.
+        """Randomly applies the defined text augmentation pipeline to an input text.
 
         Args:
             text (str): Input text
@@ -259,8 +248,7 @@ class TextAugmenter:
         return text
 
     def _random_apply(self, func: Callable[[str], str], p: float = .5) -> Callable[[str], str]:
-        """
-        Applies a given function with a given probability.
+        """Applies a given function with a given probability.
 
         Args:
             func (Callable[[str], str]): The function to be applied
@@ -275,8 +263,7 @@ class TextAugmenter:
         return func
 
     def _random_augmentation(self) -> Callable[[], Callable[[str], str]]:
-        """
-        Returns a callable that returns a random text augmentation function.
+        """Returns a callable that returns a random text augmentation function.
 
         The random text augmentation function will be chosen from the following:
         - synonym replacement
@@ -299,8 +286,7 @@ class TextAugmenter:
         return augmentation
 
     def _synonym_replacement(self, text: str, p: float = .2) -> str:
-        """
-        Replace a random word in the text with a random synonym.
+        """Replace a random word in the text with a random synonym.
 
         The probability of replacing a word is given by the parameter p.
         If a word does not have any synonyms, it is left unchanged.
@@ -327,8 +313,7 @@ class TextAugmenter:
         return " ".join(new_words)
 
     def _random_swap(self, text: str) -> str:
-        """
-        Swap two random words in the text.
+        """Swap two random words in the text.
 
         The two words are chosen randomly from the text.
         The positions of the words are swapped.
@@ -347,8 +332,7 @@ class TextAugmenter:
         return " ".join(new_words)
     
     def _random_insertion(self, text: str) -> str:
-        """
-        Insert a random synonym of a random word in the text.
+        """Insert a random synonym of a random word in the text.
 
         The synonym is chosen randomly from the synsets of the random word.
         The position of the insertion is chosen randomly in the text.
@@ -367,8 +351,7 @@ class TextAugmenter:
         return " ".join(new_words)
     
     def _random_deletion(self, text: str, p: float = .2) -> str:
-        """
-        Delete random words in the text with probability p.
+        """Delete random words in the text with probability p.
 
         The words are chosen randomly from the text.
 

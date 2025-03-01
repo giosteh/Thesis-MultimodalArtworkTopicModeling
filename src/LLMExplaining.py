@@ -35,8 +35,7 @@ class Explainer:
     def __init__(self,
                  embedding_model: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt"),
                  theme_names: List[str] = ["Genre", "Subject", "Medium", "Style"]) -> None:
-        """
-        Initializes the explainer.
+        """Initializes the explainer.
 
         Args:
             embedding_model (Tuple[str, str]): The embedding model to use. Defaults to ("ViT-B/32", "models/finetuned-v2.pt").
@@ -65,8 +64,7 @@ class Explainer:
                  saving_path: str,
                  topics: List[List[List[Tuple[str, float]]]],
                  rich_prompt: bool = False) -> None:
-        """
-        Explains the given interpretations.
+        """Explains the given topics.
 
         Args:
             sample_paths (List[str]): The paths to the sample images.
@@ -86,7 +84,6 @@ class Explainer:
         descriptions = [
             self.describe(path, prompt) for path, prompt in zip(sample_paths, prompts)
         ]
-
         # Saving the descriptions
         saving = {
             "descriptions": descriptions,
@@ -96,8 +93,7 @@ class Explainer:
             pickle.dump(saving, f)
 
     def _setup_prompt(self, topic: List[List[Tuple[str, float]]], rich_prompt: bool) -> str:
-        """
-        Sets up the prompt text for explaining the given interpretation.
+        """Sets up the prompt for the LLM.
 
         Args:
             topic (List[List[Tuple[str, float]]]): The interpretation to explain.
@@ -116,8 +112,7 @@ class Explainer:
         return prompt_text
 
     def describe(self, image_path: str, prompt_text: str) -> str:
-        """
-        Describe the topic given a sample image.
+        """Describe the topic given a sample image using the LLM.
 
         Args:
             image_path (str): The path to the sample image.
@@ -136,20 +131,7 @@ class Explainer:
                 ],
             },
         ]
-
-        # template = (
-        #     "{% for message in messages %}"
-        #     "{% if message['role'] != 'system' %}"
-        #     "{{ message['role'].upper() + ': '}}"
-        #     "{% endif %}"
-        #     "{% for content in message['content'] | selectattr('type', 'equalto', 'text') %}"
-        #     "{{ '<image>\n' }}"
-        #     "{% endfor %}"
-        #     "{% for content in message['content'] | selectattr('type', 'equalto', 'text') %}"
-        #     "{{ content['text'] + ' '}}"
-        #     "{% endfor %}"
-        #     "{% endfor %}"
-        # )
+        # Preparing the prompt
         prompt = self._processor.apply_chat_template(
             conversation=conversation,
             add_generation_prompt=True
@@ -165,8 +147,7 @@ class Explainer:
         return description
 
     def cross_similarity(self, descriptions: List[str]) -> List[float]:
-        """
-        Computes the cross similarity between the descriptions.
+        """Computes the cross similarity between the descriptions.
 
         Args:
             descriptions (List[str]): The descriptions.

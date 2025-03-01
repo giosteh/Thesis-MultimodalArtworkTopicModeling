@@ -27,8 +27,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Method to load a model
 def load_model(base_model: str, model_path: str) -> nn.Module:
-    """
-    Loads the finetuned model.
+    """Loads the finetuned model.
 
     Args:
         base_model (str): The base model to use.
@@ -57,8 +56,7 @@ class ImageCaptionDataset(Dataset):
                  captions_file_path: str = "data/artwork_captions.txt",
                  apply_augmentations: bool = False,
                  path_only: bool = False) -> None:
-        """
-        Initializes the ImageTextDataset.
+        """Initializes the ImageTextDataset.
 
         Args:
             images_dir (str): The directory containing the images. Defaults to "images/imagesf2".
@@ -80,8 +78,7 @@ class ImageCaptionDataset(Dataset):
     
 
     def __len__(self) -> int:
-        """
-        Returns the number of image-caption pairs in the dataset.
+        """Returns the number of image-caption pairs in the dataset.
 
         Returns:
             int: The number of image-caption pairs.
@@ -89,8 +86,7 @@ class ImageCaptionDataset(Dataset):
         return len(self._image_caption_pairs)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, str]:
-        """
-        Returns the image and text at a given index.
+        """Returns the image and text at a given index.
 
         Args:
             idx (int): The index of the image and text to be returned.
@@ -125,8 +121,7 @@ class CLIPFinetuner:
                  unfreeze_from: int = 6,
                  unfreeze_every: int = 2,
                  models_dir: str = "models") -> None:
-        """
-        Initializes the CLIPFinetuner.
+        """Initializes the CLIPFinetuner.
 
         Args:
             model_name (str, optional): The name of the model. Defaults to "ViT-B/32".
@@ -160,8 +155,7 @@ class CLIPFinetuner:
     
 
     def load_model(self, path: str) -> None:
-        """
-        Loads the model from a checkpoint.
+        """Loads the model from a checkpoint.
 
         Args:
             path (str): The path to the checkpoint.
@@ -174,8 +168,7 @@ class CLIPFinetuner:
         self._resume_epoch = checkpoint["epoch"]
 
     def _save_model(self, epoch: int) -> None:
-        """
-        Save the model checkpoint.
+        """Saves the model checkpoint.
 
         Args:
             epoch (int): The current epoch.
@@ -194,8 +187,7 @@ class CLIPFinetuner:
         }, checkpoint_path)
     
     def _get_dataloaders(self, val_split: float = .3, batch_size: int = 128, apply_augmentations: bool = False) -> Tuple[DataLoader, DataLoader]:
-        """
-        Returns the train and validation DataLoaders.
+        """Creates the train and validation DataLoaders.
 
         Args:
             val_split (float, optional): The proportion of the dataset to include in the validation set. Defaults to .3.
@@ -216,8 +208,7 @@ class CLIPFinetuner:
         return train_loader, val_loader
     
     def fit(self, epochs: int = 100, verbose: bool = True) -> None:
-        """
-        Trains the model for the given number of epochs.
+        """Trains the model for the given number of epochs.
 
         Args:
             epochs (int, optional): The number of epochs to train the model. Defaults to 100.
@@ -245,15 +236,13 @@ class CLIPFinetuner:
                 break
     
     def _freeze_model(self) -> None:
-        """
-        Freeze all the model's parameters.
+        """Freeze all the model's parameters.
         """
         for p in self._model.parameters():
             p.requires_grad_(False)
 
     def _unfreeze_blocks(self, blocks_to_unfreeze: int) -> None:
-        """
-        Unfreeze the last given number of transformer blocks in the model.
+        """Unfreeze the last given number of transformer blocks in the model.
 
         Args:
             blocks_to_unfreeze (int): The number of blocks to unfreeze.
@@ -278,8 +267,7 @@ class CLIPFinetuner:
                 p.requires_grad_()
 
     def _unfreeze_model(self, epoch: int) -> None:
-        """
-        Partially unfreeze the model, given the epoch.
+        """Partially unfreeze the model, given the epoch.
 
         Every self._unfreeze_every epochs, starting from self._unfreeze_from, unfreeze one more transformer block.
 
@@ -305,8 +293,7 @@ class CLIPFinetuner:
                     print(f"\n<Unfrozen blocks {self._tot_blocks - blocks_to_unfreeze} to {self._tot_blocks}.>")
 
     def _clip_score(self, images: torch.Tensor, texts: torch.Tensor) -> float:
-        """
-        Returns the CLIP score for the given images and texts.
+        """Computes the CLIP score for the given images and texts.
 
         Args:
             images (torch.Tensor): The images.
@@ -326,8 +313,7 @@ class CLIPFinetuner:
         return score
 
     def _train(self) -> float:
-        """
-        Train the model on the training set for one epoch.
+        """Train the model on the training set for one epoch.
 
         Returns:
             float: The average training loss.
@@ -356,8 +342,7 @@ class CLIPFinetuner:
         return total_loss
 
     def _validate(self) -> Tuple[float, float]:
-        """
-        Validate the model on the validation set.
+        """Validate the model on the validation set.
 
         Returns:
             Tuple[float, float]: The average validation loss and score.
@@ -395,8 +380,7 @@ class EarlyStopping:
                  patience: int = 80,
                  models_dir: str = "models",
                  mode: str = "max"):
-        """
-        Initialize the early stopping object.
+        """Initialize the early stopping object.
 
         Args:
             model (nn.Module): The model to be trained.
@@ -417,8 +401,7 @@ class EarlyStopping:
         self._val_scores = []
 
     def __call__(self, train_loss: float, val_loss: float, val_score: float) -> bool:
-        """
-        Call the early stopping object.
+        """Check if the early stopping criteria is met.
 
         Args:
             train_loss (float): The training loss.
@@ -449,8 +432,7 @@ class EarlyStopping:
         return self._stop
 
     def _is_improvement(self, score: float) -> bool:
-        """
-        Check if the score is an improvement.
+        """Check if the score is an improvement.
 
         Args:
             score (float): The score to check.
@@ -464,8 +446,7 @@ class EarlyStopping:
             return score < self._best_score
 
     def _save_checkpoint(self, name: str = "checkpoint.pt") -> None:
-        """
-        Save the model checkpoint.
+        """Saves the model checkpoint.
 
         Args:
             name (str, optional): The name of the checkpoint. Defaults to "checkpoint.pt".
@@ -477,9 +458,8 @@ class EarlyStopping:
         torch.save(self._model.state_dict(), checkpoint_path)
     
     def _save_lists(self) -> None:
-        """
-        Save the loss and score lists with pickle.
-
+        """Saves the lists of losses and scores.
+        
         Args:
             None
 
