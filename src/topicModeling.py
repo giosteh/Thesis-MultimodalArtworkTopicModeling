@@ -297,7 +297,7 @@ class TopicModel:
         # Adding the similarity column for each image
         self._embeddings_df["similarity"] = images_similarity[row_idx, self._embeddings_df["label"]]
         df = self._embeddings_df.copy()
-        # Getting the top images for each topic
+
         self._top_images = (
             df.groupby("label", group_keys=False)
             .apply(lambda x: x.nlargest(nr_images, "similarity")["image_path"].tolist(), include_groups=False)
@@ -362,7 +362,6 @@ class TopicModel:
                     c=sampled_labels, cmap="plasma", s=40, marker="o")
         plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=topics_range, cmap="plasma", s=400, marker="x")
         plt.colorbar()
-
         plt.tight_layout()
         plt.savefig("results/embeddings.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
@@ -378,7 +377,6 @@ if __name__ == "__main__":
     parser.add_argument("--min_topic_size", type=int, default=25)
     parser.add_argument("--top_n_words", type=int, default=3)
     parser.add_argument("--nr_topics", type=int, default=10)
-
     parser.add_argument("--method", type=str, default="kmeans")
     parser.add_argument("--reduce", action="store_true")
     parser.add_argument("--explain", action="store_true")
@@ -403,6 +401,7 @@ if __name__ == "__main__":
         explainer = Explainer(
             embedding_model=args.embedding_model.split(";")
         )
+        
         with open("results/topic_modeling.pkl", "rb") as f:
             topics = pickle.load(f)["topics"]
         sample_paths = sorted(glob.glob("results/sample*.png"))
