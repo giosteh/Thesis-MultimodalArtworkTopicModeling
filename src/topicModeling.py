@@ -255,7 +255,9 @@ class TopicModel:
         Returns:
             None
         """
-        pass
+        unique_labels = np.unique(self._labels)
+        if len(unique_labels) <= self._nr_topics:
+            return
 
     def _evaluate_topics(self) -> None:
         """Evaluates the topics computing the topic diversity.
@@ -265,7 +267,7 @@ class TopicModel:
         """
         topk_words = self._top_n_words * len(self._pov_names)
         metrics = {
-            "topic_diversity": TopicDiversity(topk=topk_words)
+            "topic-diversity": TopicDiversity(topk=topk_words)
         }
 
         model_output = {"topics": self._topics}
@@ -319,17 +321,23 @@ class TopicModel:
             if label == -1:
                 continue
             topic, top_images = self._topics[label], self._top_images[label]
-            sampled_images = df["image_path"].sample(20, random_state=0).tolist()
-            self._view_single_topic(topic, sampled_images, f"results/topic{label+1}.png")
-            self._view_single_topic(topic, top_images, f"results/topic{label+1}_top.png")
+            sampled_images = df["image_path"].sample(20, random_state=42).tolist()
+            self._view_single_topic(f"results/topic{label+1}.png", sampled_images, topic)
+            self._view_single_topic(f"results/topic{label+1}-top.png", top_images, topic)
+            self._view_single_topic(f"results/images{label+1}-top.png", top_images, show_text=False)
 
-    def _view_single_topic(self, topic: List[str], images: List[str], path: str) -> None:
+    def _view_single_topic(self,
+                           path: str,
+                           images: List[str],
+                           topic: List[str] = None,
+                           show_text: bool = True) -> None:
         """Visualizes a single topic.
 
         Args:
-            topic (List[str]): The topic to visualize.
-            images (List[str]): The images to visualize.
             path (str): The path to save the figure.
+            images (List[str]): The images to show.
+            topic (List[str], optional): The topic to show. Defaults to None.
+            show_text (bool, optional): Whether to show the text. Defaults to True.
 
         Returns:
             None
@@ -340,10 +348,14 @@ class TopicModel:
             ax.imshow(Image.open(image_path).convert("RGB"))
             ax.axis("off")
         plt.tight_layout()
-        # Adding a text box
+
+        if not show_text:
+            plt.savefig(path, format="png", dpi=300, bbox_inches="tight")
+            plt.close()
+            return
+        # Adding the text
         fig.subplots_adjust(bottom=.2)
         text_ax = fig.add_axes([.05, .07, .9, .12])
-
         povs = np.array_split(topic, len(self._pov_names))
         text_content = "\n\n".join(
             f"{pov_name.upper()} : " + ", ".join(povs[i])
