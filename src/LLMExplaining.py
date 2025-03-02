@@ -6,6 +6,7 @@ from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
 from CLIPFinetuning import load_model
 from typing import List, Tuple
 from PIL import Image
+import numpy as np
 import warnings
 import pickle
 import clip
@@ -34,15 +35,15 @@ class Explainer:
 
     def __init__(self,
                  embedding_model: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt"),
-                 theme_names: List[str] = ["Genre", "Subject", "Medium", "Style"]) -> None:
+                 pov_names: List[str] = ["Genre", "Subject", "Medium", "Style"]) -> None:
         """Initializes the explainer.
 
         Args:
             embedding_model (Tuple[str, str]): The embedding model to use. Defaults to ("ViT-B/32", "models/finetuned-v2.pt").
-            theme_names (List[str]): The theme names. Defaults to ["Genre", "Subject", "Medium", "Style"].
+            pov_names (List[str]): The pov names. Defaults to ["Genre", "Subject", "Medium", "Style"].
         """
         self._embedding_model = load_model(embedding_model[0], embedding_model[1])
-        self._theme_names = theme_names
+        self._pov_names = pov_names
         self._topics = []
 
         self._llm = LlavaNextForConditionalGeneration.from_pretrained(
@@ -62,25 +63,22 @@ class Explainer:
     def __call__(self,
                  sample_paths: List[str],
                  saving_path: str,
-                 topics: List[List[List[Tuple[str, float]]]],
+                 topics: List[List[str]],
                  rich_prompt: bool = False) -> None:
-        """Explains the given topics.
+        """Explains the topics using the LLM.
 
         Args:
             sample_paths (List[str]): The paths to the sample images.
-            topics (List[List[List[Tuple[str, float]]]]): The topics to explain.
-            rich_prompt (bool): Whether to use a comprehensive prompt_text.
-
+            saving_path (str): The path to save the descriptions.
+            topics (List[List[str]]): The topics to explain.
+            rich_prompt (bool, optional): Whether to use a comprehensive prompt_text. Defaults to False.
+        
         Returns:
             None
         """
-        nr_topics = len(topics[0])
-        self._topics = [
-            [t[i] for t in topics] for i in range(nr_topics)
-        ]
-
+        self._topics = topics
+        # Setting up the prompts and generating the descriptions
         prompts = [self._setup_prompt(topic, rich_prompt) for topic in self._topics]
-        # Generating the descriptions
         descriptions = [
             self.describe(path, prompt) for path, prompt in zip(sample_paths, prompts)
         ]
@@ -92,23 +90,26 @@ class Explainer:
         with open(saving_path, "wb") as f:
             pickle.dump(saving, f)
 
-    def _setup_prompt(self, topic: List[List[Tuple[str, float]]], rich_prompt: bool) -> str:
-        """Sets up the prompt for the LLM.
+    def _setup_prompt(self, topic: List[List[str]], rich_prompt: bool) -> str:
+        """Sets up the prompt text.
 
         Args:
-            topic (List[List[Tuple[str, float]]]): The interpretation to explain.
+            topic (List[List[str]]): The topic to explain.
             rich_prompt (bool): Whether to use a comprehensive prompt_text.
 
         Returns:
-            str: The prompt_text.
+            str: The prompt text.
         """
         prompt_text = BASIC_PROMPT
 
         if rich_prompt:
             prompt_text = RICH_PROMPT
-            for theme, terms in zip(self._theme_names, topic):
-                words = [t for t, _ in terms[:3]]
-                prompt_text += f"{theme}: {', '.join(words)}\n"
+            povs = np.array_split(topic, len(self._pov_names))
+            extra_content = "\n".join(
+                f"{pov_name.upper()} : " + ", ".join(povs[i])
+                for i, pov_name in enumerate(self._pov_names)
+            )
+            prompt_text += extra_content
         return prompt_text
 
     def describe(self, image_path: str, prompt_text: str) -> str:

@@ -7,9 +7,11 @@ from sklearn.metrics import silhouette_score
 from sklearn.model_selection import train_test_split
 from octis.evaluation_metrics.diversity_metrics import TopicDiversity
 from CLIPFinetuning import ImageCaptionDataset, load_model
+from sklearn.metrics.pairwise import cosine_similarity
 from scipy.sparse import SparseEfficiencyWarning
 from numba.core.errors import NumbaWarning
 from sklearn.cluster import KMeans, DBSCAN
+from collections import defaultdict
 from LLMExplaining import Explainer
 import matplotlib.pyplot as plt
 from typing import Tuple, List
@@ -31,7 +33,6 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 warnings.filterwarnings("ignore", category=NumbaWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
-plt.rcParams.update({"font.family": "Lato"})
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -182,7 +183,10 @@ class TopicModel:
         noise_perc = len(self._labels[self._labels == -1]) / len(self._labels)
         print(f"Noise: {noise_perc*100:.2f}%\n")
 
+        # Extracting the topics
         self._extract_topics()
+        if method != "kmeans":
+            self._merge_topics()
         self._evaluate_topics()
         # Saving the results and visualizing
         self._save_results()
@@ -278,7 +282,7 @@ class TopicModel:
             None
         """
         saving = {"topics": self._topics, "scores": self._scores}
-        with open(f"results/TM.pkl", "wb") as f:
+        with open(f"results/modeling.pkl", "wb") as f:
             pickle.dump(saving, f)
     
     def _get_top_images(self, nr_images: int = 20) -> None:
@@ -304,34 +308,52 @@ class TopicModel:
         )
 
     def _view_topics(self) -> None:
-        """Visualizes the top images and top terms for each topic.
+        """Visualizes the top and sampled images for each topic.
 
         Returns:
             None
         """
         self._get_top_images()
-        for label in np.unique(self._labels):
-            images = self._top_images[label]
-            fig, axes = plt.subplots(4, 5, figsize=(20, 26))
-            axes = axes.flatten()
-            for ax, image_path in zip(axes, images):
-                ax.imshow(Image.open(image_path).convert("RGB"))
-                ax.axis("off")
-            plt.tight_layout()
-            # Adding a text box
-            fig.subplots_adjust(bottom=.2)
-            text_ax = fig.add_axes([0.05, 0.05, 0.9, 0.1])
+        # Iterating over the topics
+        for label, df in self._embeddings_df.groupby("label"):
+            if label == -1:
+                continue
+            topic, top_images = self._topics[label], self._top_images[label]
+            sampled_images = df["image_path"].sample(20, random_state=0).tolist()
+            self._view_single_topic(topic, sampled_images, f"results/topic{label+1}.png")
+            self._view_single_topic(topic, top_images, f"results/topic{label+1}_top.png")
 
-            povs = np.array_split(self._topics[label], len(self._pov_names))
-            text_content = "\n\n".join(
-                f"{pov_name.upper()} : " + ", ".join(povs[i])
-                for i, pov_name in enumerate(self._pov_names)
-            )
-            text_ax.text(0, 1, text_content, fontsize=24, ha="left", va="top",
-                         bbox=dict(boxstyle="square,pad=1.2", facecolor="#f5f5f5"))
-            text_ax.axis("off")
-            plt.savefig(f"results/topic{label+1:02d}.png", format="png", dpi=300, bbox_inches="tight")
-            plt.close()
+    def _view_single_topic(self, topic: List[str], images: List[str], path: str) -> None:
+        """Visualizes a single topic.
+
+        Args:
+            topic (List[str]): The topic to visualize.
+            images (List[str]): The images to visualize.
+            path (str): The path to save the figure.
+
+        Returns:
+            None
+        """
+        fig, axes = plt.subplots(4, 5, figsize=(20, 26))
+        axes = axes.flatten()
+        for ax, image_path in zip(axes, images):
+            ax.imshow(Image.open(image_path).convert("RGB"))
+            ax.axis("off")
+        plt.tight_layout()
+        # Adding a text box
+        fig.subplots_adjust(bottom=.2)
+        text_ax = fig.add_axes([.05, .07, .9, .12])
+
+        povs = np.array_split(topic, len(self._pov_names))
+        text_content = "\n\n".join(
+            f"{pov_name.upper()} : " + ", ".join(povs[i])
+            for i, pov_name in enumerate(self._pov_names)
+        )
+        text_ax.text(0, 1, text_content, fontsize=24, ha="left", va="top",
+                     bbox=dict(boxstyle="square,pad=1.2", facecolor="#f6f6f6"))
+        text_ax.axis("off")
+        plt.savefig(path, format="png", dpi=300, bbox_inches="tight")
+        plt.close()
 
     def _view_latent_space(self) -> None:
         """Visualizes the embeddings in a 2D space.
@@ -354,12 +376,12 @@ class TopicModel:
         sample = train_test_split(embeddings, labels, train_size=.01, stratify=labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
 
-        plt.figure(figsize=(17, 12))
+        plt.figure(figsize=(15, 12))
+        plt.tight_layout()
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
                     c=sampled_labels, cmap="plasma", s=40, marker="o")
         plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=topics_range, cmap="plasma", s=400, marker="x")
-        plt.colorbar()
-        plt.tight_layout()
+        plt.title("Latent Space in 2D")
         plt.savefig("results/embeddings.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
 
@@ -371,17 +393,17 @@ if __name__ == "__main__":
     parser.add_argument("--embedding_model", type=str, default="ViT-B/32;models/finetuned-v2.pt")
     parser.add_argument("--embeddings_path", type=str, default="data/finetuned_embeddings.csv")
     parser.add_argument("--vocabulary_path", type=str, default="data/topic_vocab.pkl")
-    parser.add_argument("--min_topic_size", type=int, default=25)
-    parser.add_argument("--top_n_words", type=int, default=3)
-    parser.add_argument("--nr_topics", type=int, default=10)
-    parser.add_argument("--method", type=str, default="kmeans")
+    parser.add_argument("-m", "--method", type=str, default="kmeans")
+    parser.add_argument("-t", "--nr_topics", type=int, default=10)
+    parser.add_argument("-n", "--top_n_words", type=int, default=3)
+    parser.add_argument("--min_topic_size", type=int, default=50)
     parser.add_argument("--reduce", action="store_true")
     parser.add_argument("--explain", action="store_true")
 
     args = parser.parse_args()
 
     # 1. initialize the topic model
-    topic_modeler = TopicModel(
+    topic_model = TopicModel(
         embedding_model=args.embedding_model.split(";"),
         embeddings_path=args.embeddings_path,
         vocabulary_path=args.vocabulary_path,
@@ -389,19 +411,18 @@ if __name__ == "__main__":
         top_n_words=args.top_n_words,
         nr_topics=args.nr_topics
     )
-
     # 2. fit the topic model
-    topic_modeler.fit(method=args.method, reduce=args.reduce)
-
+    topic_model.fit(method=args.method, reduce=args.reduce)
+    
     if args.explain:
         # 3. explain the topics
         explainer = Explainer(
             embedding_model=args.embedding_model.split(";")
         )
         
-        with open("results/topic_modeling.pkl", "rb") as f:
+        with open("results/modeling.pkl", "rb") as f:
             topics = pickle.load(f)["topics"]
-        sample_paths = sorted(glob.glob("results/sample*.png"))
+        sample_paths = sorted(glob.glob("results/images*.png"))
 
         explainer(
             sample_paths=sample_paths,
