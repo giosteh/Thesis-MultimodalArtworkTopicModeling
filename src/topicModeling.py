@@ -391,7 +391,7 @@ class TopicModel:
         plt.figure(figsize=(15, 12))
         plt.tight_layout()
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
-                    c=sampled_labels, cmap="plasma", s=40, marker="o")
+                    c=sampled_labels, cmap="plasma", s=30, marker="o")
         plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=topics_range, cmap="plasma", s=400, marker="x")
         plt.title("Latent Space in 2D")
         plt.savefig("results/embeddings.png", format="png", dpi=300, bbox_inches="tight")
@@ -438,12 +438,12 @@ if __name__ == "__main__":
 
         explainer(
             sample_paths=sample_paths,
-            saving_path="results/explaining.pkl",
+            saving_path="results/llm.pkl",
             topics=topics
         )
         explainer(
             sample_paths=sample_paths,
-            saving_path="results/explaining_rich.pkl",
+            saving_path="results/llm-rich.pkl",
             topics=topics,
             rich_prompt=True
         )
