@@ -3,7 +3,7 @@ Classes and functions for explaining the clusters using LLMs.
 """
 
 from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
-from CLIPFinetuning import load_model
+from finetuneCLIP import load_model
 from typing import List, Tuple
 from PIL import Image
 import numpy as np
@@ -46,13 +46,14 @@ class Explainer:
         self._pov_names = pov_names
         self._topics = []
 
+        # Setting up LLM & processor
         self._llm = LlavaNextForConditionalGeneration.from_pretrained(
             "llava-hf/llava-v1.6-mistral-7b-hf",
             torch_dtype=torch.float16,
             device_map="auto"
         )
         self._llm.config.pad_token_id = self._llm.config.eos_token_id
-
+        
         self._processor = LlavaNextProcessor.from_pretrained(
             "llava-hf/llava-v1.6-mistral-7b-hf",
             vision_feature_select_strategy="default",
@@ -85,7 +86,7 @@ class Explainer:
         # Saving the descriptions
         saving = {
             "descriptions": descriptions,
-            "similarities": self.cross_similarity(descriptions)
+            "WEPS": self.cross_similarity(descriptions)
         }
         with open(saving_path, "wb") as f:
             pickle.dump(saving, f)

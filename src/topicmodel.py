@@ -2,17 +2,15 @@
 Classes and functions for topic modeling of artworks.
 """
 
+from collections import defaultdict
 from torch.utils.data import DataLoader
 from sklearn.metrics import silhouette_score
 from sklearn.model_selection import train_test_split
-from octis.evaluation_metrics.diversity_metrics import TopicDiversity
-from CLIPFinetuning import ImageCaptionDataset, load_model
+from finetuneCLIP import ImageCaptionDataset, load_model
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.sparse import SparseEfficiencyWarning
 from numba.core.errors import NumbaWarning
-from sklearn.cluster import KMeans, DBSCAN
-from collections import defaultdict
-from LLMExplaining import Explainer
+from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 from typing import Tuple, List
 from umap import UMAP
@@ -20,15 +18,13 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 import hdbscan
-import warnings
-import argparse
 import pickle
-import glob
 import clip
 import torch
+import warnings
 
 
-# General settings
+# Warnings handling
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 warnings.filterwarnings("ignore", category=NumbaWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -125,6 +121,7 @@ class TopicModel:
         self._scores = {}
         self._top_images = None
 
+        self._nr_clusters = None
         # Initializing the cluster model
         self._cluster_model = {
             "kmeans": KMeans(
@@ -133,11 +130,6 @@ class TopicModel:
                 n_init=10,
                 max_iter=10000,
                 random_state=42
-            ),
-            "dbscan": DBSCAN(
-                eps=.3,
-                min_samples=20,
-                metric="cosine"
             ),
             "hdbscan": hdbscan.HDBSCAN(
                 min_cluster_size=min_topic_size,
@@ -177,18 +169,17 @@ class TopicModel:
         self._embeddings_df["label"] = self._labels
         if method == "hdbscan":
             self._probs = self._cluster_model[method].probabilities_
+        elif method == "kmeans":
+            self._scores["Inertia"] = self._cluster_model[method].inertia_
+        
         self._compute_centers()
         print(f"Found {self._nr_topics} topics!\n")
-        # Percentage of noise
-        noise_perc = len(self._labels[self._labels == -1]) / len(self._labels)
-        print(f"Noise: {noise_perc*100:.2f}%\n")
-
         # Extracting the topics
         self._extract_topics()
-        if method != "kmeans":
+        if method == "hdbscan":
             self._merge_topics()
         self._evaluate_topics()
-        # Saving the results and visualizing
+        # Saving the results
         self._save_results()
         self._view_topics()
         self._view_latent_space()
@@ -200,10 +191,9 @@ class TopicModel:
             None
         """
         labels_filtered = self._labels[self._labels != -1]
-        embeddings_filtered = self._embeddings[self._labels != -1]
-
         unique_labels = np.unique(labels_filtered)
-        self._nr_topics = len(unique_labels)
+        self._nr_clusters = len(unique_labels)
+
         weighted = True if self._probs is not None else False
         # Computing the cluster centers
         for l in unique_labels:
@@ -212,13 +202,6 @@ class TopicModel:
             if weighted:
                 center = np.average(self._embeddings[mask], weights=self._probs[mask], axis=0)
             self._centers.append(center)
-        
-        # Computing the silhouette score
-        if len(unique_labels) < 2:
-            self._scores["silhouette"] = None
-            return
-        score = silhouette_score(embeddings_filtered, labels_filtered)
-        self._scores["silhouette"] = score
 
     def _extract_topics(self) -> None:
         """Extracts the topics from the cluster centers.
@@ -250,13 +233,12 @@ class TopicModel:
         ]
 
     def _merge_topics(self) -> None:
-        """Merges the least common topics until there are only self._nr_topics topics.
+        """Merges the smallest topics until there are self._nr_topics topics.
 
         Returns:
             None
         """
-        unique_labels = np.unique(self._labels)
-        if len(unique_labels) <= self._nr_topics:
+        if self._nr_clusters <= self._nr_topics:
             return
 
     def _evaluate_topics(self) -> None:
@@ -267,7 +249,6 @@ class TopicModel:
         """
         topk_words = self._top_n_words * len(self._pov_names)
         metrics = {
-            "topic-diversity": TopicDiversity(topk=topk_words)
         }
 
         model_output = {"topics": self._topics}
@@ -284,7 +265,7 @@ class TopicModel:
             None
         """
         saving = {"topics": self._topics, "scores": self._scores}
-        with open(f"results/modeling.pkl", "wb") as f:
+        with open("output/results.pkl", "wb") as f:
             pickle.dump(saving, f)
     
     def _get_top_images(self, nr_images: int = 20) -> None:
@@ -322,9 +303,9 @@ class TopicModel:
                 continue
             topic, top_images = self._topics[label], self._top_images[label]
             sampled_images = df["image_path"].sample(20, random_state=42).tolist()
-            self._view_single_topic(f"results/topic{label+1}.png", sampled_images, topic)
-            self._view_single_topic(f"results/topic{label+1}-top.png", top_images, topic)
-            self._view_single_topic(f"results/images{label+1}-top.png", top_images, show_text=False)
+            self._view_single_topic(f"output/topic{label+1}.png", sampled_images, topic)
+            self._view_single_topic(f"output/topic{label+1}-top.png", top_images, topic)
+            self._view_single_topic(f"output/images{label+1}-top.png", top_images, show_text=False)
 
     def _view_single_topic(self,
                            path: str,
@@ -396,54 +377,3 @@ class TopicModel:
         plt.title("Latent Space in 2D")
         plt.savefig("results/embeddings.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
-
-
-
-if __name__ == "__main__":
-    # command line arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--embedding_model", type=str, default="ViT-B/32;models/finetuned-v2.pt")
-    parser.add_argument("--embeddings_path", type=str, default="data/finetuned_embeddings.csv")
-    parser.add_argument("--vocabulary_path", type=str, default="data/topic_vocab.pkl")
-    parser.add_argument("-m", "--method", type=str, default="kmeans")
-    parser.add_argument("-t", "--nr_topics", type=int, default=10)
-    parser.add_argument("-n", "--top_n_words", type=int, default=3)
-    parser.add_argument("--min_topic_size", type=int, default=50)
-    parser.add_argument("--reduce", action="store_true")
-    parser.add_argument("--explain", action="store_true")
-
-    args = parser.parse_args()
-
-    # 1. initialize the topic model
-    topic_model = TopicModel(
-        embedding_model=args.embedding_model.split(";"),
-        embeddings_path=args.embeddings_path,
-        vocabulary_path=args.vocabulary_path,
-        min_topic_size=args.min_topic_size,
-        top_n_words=args.top_n_words,
-        nr_topics=args.nr_topics
-    )
-    # 2. fit the topic model
-    topic_model.fit(method=args.method, reduce=args.reduce)
-    
-    if args.explain:
-        # 3. explain the topics
-        explainer = Explainer(
-            embedding_model=args.embedding_model.split(";")
-        )
-        
-        with open("results/modeling.pkl", "rb") as f:
-            topics = pickle.load(f)["topics"]
-        sample_paths = sorted(glob.glob("results/images*.png"))
-
-        explainer(
-            sample_paths=sample_paths,
-            saving_path="results/llm.pkl",
-            topics=topics
-        )
-        explainer(
-            sample_paths=sample_paths,
-            saving_path="results/llm-rich.pkl",
-            topics=topics,
-            rich_prompt=True
-        )

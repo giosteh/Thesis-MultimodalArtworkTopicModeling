@@ -2,29 +2,28 @@
 Classes and functions for processing data.
 """
 
-import clip
-import torch
-import torchvision.transforms as T
+from typing import Callable, List, Dict
 from nltk.corpus import wordnet as wn
-from typing import Callable, Dict, List
+import torchvision.transforms as T
 from rdflib import Graph
 import random
+import torch
+import clip
 import re
-
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 
-class PromptBuilder:
+class CaptionsBuilder:
 
-    def __init__(self, captions_file: str = "data/artwork_captions.txt") -> None:
-        """Initializes the prompt builder.
+    def __init__(self, saving_path: str = "data/artwork_captions.txt") -> None:
+        """Initializes the CaptionsBuilder.
 
         Args:
-            captions_file (str): The file containing the captions. Defaults to "data/artwork_captions.txt".
+            saving_path (str): The file containing the captions. Defaults to "data/artwork_captions.txt".
         """
-        self._captions_file = captions_file
+        self._saving_path = saving_path
         self._sparql_query = """
             PREFIX artgraph: <https://www.gennarovessio.com/artgraph-schema#>
 
@@ -49,69 +48,49 @@ class PromptBuilder:
                     ?artwork artgraph:hasStyle ?style .
                     ?style artgraph:name ?styleName .
                 }
-                OPTIONAL {
-                    ?artwork artgraph:hasPeriod ?period .
-                    ?period artgraph:name ?periodName .
-                }
-                OPTIONAL {
-                    ?artwork artgraph:createdBy ?artist .
-                    ?artist artgraph:name ?artistName .
-                }
             }
         """
     
-    def _build_prompt(self, individual: Dict[str, str], tags_list: List[str]) -> str:
-        """Builds a prompt for the given artwork, using the information from the SPARQL query.
+    def _build_caption(self, individual: Dict[str, str], tags_list: List[str]) -> str:
+        """Builds a caption for the given artwork, using the information from the SPARQL query.
         
-        The prompt is built by concatenating the following strings:
+        The caption is built by concatenating the following strings:
         - genre (if present)
         - media (if present)
         - tags (if present)
         - style (if present)
-        - artist (if present)
-        - period (if present)
 
-        The final prompt is then stripped of any extra spaces and any parentheses containing numbers are removed.
+        The final caption is then stripped of any extra spaces and any parentheses containing numbers are removed.
 
         Args:
             individual (Dict[str, str]): The dictionary containing the information from the SPARQL query.
             tags_list (List[str]): The list of tags associated with the artwork.
 
         Returns:
-            str: The built prompt.
+            str: The built caption.
         """
         genre = str(individual["genre"]).strip().lower() if individual["genre"] else None
         media = str(individual["media"]).strip().lower() if individual["media"] else None
         style = str(individual["style"]).strip().lower() if individual["style"] else None
-        artist = str(individual["artist"]).strip().lower() if individual["artist"] else None
-        period = str(individual["period"]).strip().lower() if individual["period"] else None
-
+        # Genre substring
         genre_str = re.sub(r"\([^()]*\)", "", genre) if genre else None
         genre_str = genre_str.replace("painting", "") if genre_str else None
         genre_str = f"{genre_str} " if genre_str else ""
-
+        # Media substring
         media_str = f"rendered in {media} " if media else ""
-
+        # Tags substring
         tags_list = [tag for tag in tags_list if not bool(re.search(r"[&#;]", tag))]
         tags_list = [re.sub(r"[a-z]\.([a-z]\.)*", "", tag) for tag in tags_list]
         tags_list = tags_list[:3]
         tags_str = ", ".join([" ".join(tag.split("-")) for tag in tags_list]) if tags_list else None
         tags_str = tags_str.replace(" and", ",") if tags_str else None
         tag_str = f"displaying {tags_str} " if tags_str else ""
-
+        # Style substring
         style_str = f"in a {style} manner " if style else ""
 
-        artist_str = " ".join(artist.split("-")) if artist else None
-        artist_str = re.sub(r"[-]+", "", artist_str) if artist_str else None
-        artist_str = f"made by {artist_str} " if artist_str else ""
-
-        period_str = period.replace("period", "").replace("painting", "").replace("paintings", "") if period else None
-        period_str = f"during {period_str} " if period_str else ""
-
-        prompt = f"{genre_str}painting {media_str}{tag_str}{artist_str}{style_str}{period_str}"
-        prompt = " ".join(prompt.split())
-
-        return prompt.strip()
+        caption = f"{genre_str}painting {media_str}{tag_str}{style_str}"
+        caption = " ".join(caption.split())
+        return caption.strip()
 
     def __call__(self, kg_path: str = "data/artgraph-rdf/artgraph-facts.ttl") -> None:
         """Builds the captions file by querying the knowledge graph at the given path.
@@ -137,8 +116,6 @@ class PromptBuilder:
                     "genre": row.get("genreName", None),
                     "style": row.get("styleName", None),
                     "media": row.get("mediaName", None),
-                    "artist": row.get("artistName", None),
-                    "period": row.get("periodName", None),
                     "tags": []
                 }
             # Handling tags
@@ -147,11 +124,11 @@ class PromptBuilder:
                 if tag_name not in individuals[name]["tags"]:
                     individuals[name]["tags"].append(tag_name)
         
-        with open(self._captions_file, "w") as f:
+        with open(self._saving_path, "w") as f:
             for name, individual in individuals.items():
                 tags = individual["tags"]
-                prompt = self._build_prompt(individual, tags)
-                f.write(f"{name}\t{prompt}\n")
+                caption = self._build_caption(individual, tags)
+                f.write(f"{name}\t{caption}\n")
 
 
 
