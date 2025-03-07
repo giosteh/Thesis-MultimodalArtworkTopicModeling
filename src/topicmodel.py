@@ -6,6 +6,7 @@ from collections import defaultdict
 from torch.utils.data import DataLoader
 from sklearn.metrics import silhouette_score
 from sklearn.model_selection import train_test_split
+from metrics import TopicDiversity, ImageEmbeddingPairwiseSimilarity, ImageEmbeddingCoherence
 from finetuneCLIP import ImageCaptionDataset, load_model
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.sparse import SparseEfficiencyWarning
@@ -82,28 +83,32 @@ class EmbeddingDatasetBuilder:
 class TopicModel:
 
     def __init__(self,
-                 embedding_model: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt"),
+                 encoder: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt"),
                  embeddings_path: str = "data/finetuned_embeddings.csv",
                  vocabulary_path: str = "data/topic_vocab.pkl",
                  pov_names: List[str] = ["Genre", "Subject", "Medium", "Style"],
                  min_topic_size: int = 20,
+                 top_n_images: int = 20,
                  top_n_words: int = 5,
-                 nr_topics: int = 10) -> None:
+                 nr_topics: int = 10,
+                 reduced_dim: int = 5) -> None:
         """Initializes the TopicModel.
         
         Args:
-            embedding_model (Tuple[str, str]): The embedding model to use. Defaults to ("ViT-B/32", "models/finetuned-v2.pt").
+            encoder (Tuple[str, str]): The encoder model to use. Defaults to ("ViT-B/32", "models/finetuned-v2.pt").
             embeddings_path (str): The path to the embeddings csv. Defaults to "data/finetuned_embeddings.csv".
             vocabulary_path (str): The path to the vocabulary pickle. Defaults to "data/topic_vocab.pkl".
             pov_names (List[str]): The pov names. Defaults to ["Genre", "Subject", "Medium", "Style"].
             min_topic_size (int): The minimum topic size. Defaults to 20.
+            top_n_images (int): The number of top images to use. Defaults to 20.
             top_n_words (int): The number of top words to use. Defaults to 5.
             nr_topics (int): The number of topics to find. Defaults to 10.
+            reduced_dim (int): The dimension to reduce the embeddings to. Defaults to 5.
         """
-        self._embedding_model = load_model(embedding_model[0], embedding_model[1])
+        self._encoder = load_model(encoder[0], encoder[1])
         # Loading the embeddings
-        self._embeddings_df = pd.read_csv(embeddings_path)
-        embeddings = self._embeddings_df["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
+        self.df = pd.read_csv(embeddings_path)
+        embeddings = self.df["embedding"].apply(lambda x: np.fromstring(x[1:-1], sep=","))
         embeddings = np.vstack(embeddings.values)
         # Normalizing the embeddings
         X_torch = torch.from_numpy(embeddings).float()
@@ -112,6 +117,7 @@ class TopicModel:
 
         self._topic_words, self._topic_sentences = pickle.load(open(vocabulary_path, "rb"))
         self._min_topic_size = min_topic_size
+        self._top_n_images = top_n_images
         self._top_n_words = top_n_words
         self._nr_topics = nr_topics
         self._pov_names = pov_names
@@ -119,11 +125,12 @@ class TopicModel:
         self._labels, self._probs = None, None
         self._centers, self._topics = [], []
         self._scores = {}
-        self._top_images = None
+        self._image_topics = []
 
-        self._nr_clusters = None
-        # Initializing the cluster model
-        self._cluster_model = {
+        self._nr_clusters = 0
+        self._method = None
+        # Initializing the clustering models
+        self._model = {
             "kmeans": KMeans(
                 n_clusters=nr_topics,
                 init="k-means++",
@@ -139,7 +146,7 @@ class TopicModel:
         }
         # Initializing the dimensionality reduction model
         self._umap_model = UMAP(
-            n_components=5,
+            n_components=reduced_dim,
             n_neighbors=15,
             min_dist=.0,
             metric="cosine",
@@ -158,32 +165,31 @@ class TopicModel:
             None
         """
         method = method.lower()
+        self._method = method
+        # Fitting the dimensionality reduction model
         if reduce:
             embeddings = self._umap_model.fit_transform(self._embeddings)
         else:
             embeddings = self._embeddings
         
-        # Fitting the cluster model
-        self._cluster_model[method].fit(embeddings)
-        self._labels = self._cluster_model[method].labels_
-        self._embeddings_df["label"] = self._labels
-        if method == "hdbscan":
-            self._probs = self._cluster_model[method].probabilities_
-        elif method == "kmeans":
-            self._scores["Inertia"] = self._cluster_model[method].inertia_
-        
+        # Fitting the chosen clustering model
+        self._model[method].fit(embeddings)
+        self._labels = self._model[method].labels_
+        self._probs = getattr(self._model[method], "probabilities_", None)
+        self.df["label"] = self._labels
+
+        # Modeling the topics
         self._compute_centers()
-        print(f"Found {self._nr_topics} topics!\n")
-        # Extracting the topics
+        # Extracting word and image topics
         self._extract_topics()
-        if method == "hdbscan":
-            self._merge_topics()
+        self._extract_image_topics()
+
         self._evaluate_topics()
-        # Saving the results
-        self._save_results()
-        self._view_topics()
+        # Visualizing and saving
         self._view_latent_space()
-    
+        self._view_topics()
+        self._save_results()
+
     def _compute_centers(self) -> None:
         """Computes the cluster centers according to the clustering method.
 
@@ -193,11 +199,13 @@ class TopicModel:
         labels_filtered = self._labels[self._labels != -1]
         unique_labels = np.unique(labels_filtered)
         self._nr_clusters = len(unique_labels)
+        print(f"Nr. of clusters: {self._nr_clusters}")
+        self._scores["Inertia"] = getattr(self._model[self._method], "inertia_", None)
 
-        weighted = True if self._probs is not None else False
+        weighted = self._probs is not None
         # Computing the cluster centers
-        for l in unique_labels:
-            mask = (self._labels == l)
+        for label in unique_labels:
+            mask = self._labels == label
             center = self._embeddings[mask].mean(axis=0)
             if weighted:
                 center = np.average(self._embeddings[mask], weights=self._probs[mask], axis=0)
@@ -212,8 +220,8 @@ class TopicModel:
         topics = []
         with torch.no_grad():
             for words, sentences in zip(self._topic_words, self._topic_sentences):
-                sentences = clip.tokenize([p.lower() for p in sentences]).to(device)
-                sentences = self._embedding_model.encode_text(sentences)
+                sentences = clip.tokenize([s.lower() for s in sentences]).to(device)
+                sentences = self._encoder.encode_text(sentences)
                 sentences = sentences / sentences.norm(dim=-1, keepdim=True)
 
                 pov = []
@@ -242,19 +250,22 @@ class TopicModel:
             return
 
     def _evaluate_topics(self) -> None:
-        """Evaluates the topics computing the topic diversity.
+        """Evaluates the topics computing diversity and coherence metrics.
 
         Returns:
             None
         """
         topk_words = self._top_n_words * len(self._pov_names)
+        topk_images = self._top_n_images
         metrics = {
+            "TD": TopicDiversity(topk=topk_words),
+            "IEPS": ImageEmbeddingPairwiseSimilarity(topk=topk_images),
+            "IEC": ImageEmbeddingCoherence(topk=topk_images)
         }
-
-        model_output = {"topics": self._topics}
         # Computing the metrics
         for metric_name, metric in metrics.items():
-            score = metric.score(model_output)
+            topics = self._topics if metric_name not in ["IEPS", "IEC"] else self._image_topics
+            score = metric(topics)
             self._scores[metric_name] = score
             print(f"{metric_name}: {score:.4f}")
 
@@ -268,11 +279,8 @@ class TopicModel:
         with open("output/results.pkl", "wb") as f:
             pickle.dump(saving, f)
     
-    def _get_top_images(self, nr_images: int = 20) -> None:
-        """Gets the most representative images for each topic.
-        
-        Args:
-            nr_images (int): The number of images to get. Defaults to 20.
+    def _extract_image_topics(self) -> None:
+        """Extracts the top images for each topic based on the similarity with the cluster centers.
         
         Returns:
             None
@@ -281,12 +289,11 @@ class TopicModel:
         images_similarity = self._embeddings @ centers.T
         row_idx = np.arange(len(images_similarity))
         # Adding the similarity column for each image
-        self._embeddings_df["similarity"] = images_similarity[row_idx, self._embeddings_df["label"]]
-        df = self._embeddings_df.copy()
+        self.df["similarity"] = images_similarity[row_idx, self.df["label"]]
 
-        self._top_images = (
-            df.groupby("label", group_keys=False)
-            .apply(lambda x: x.nlargest(nr_images, "similarity")["image_path"].tolist(), include_groups=False)
+        self._image_topics = (
+            self.df.groupby("label", group_keys=False)
+            .apply(lambda x: x.nlargest(self._top_n_images, "similarity")["image_path"].tolist(), include_groups=False)
             .tolist()
         )
 
@@ -296,29 +303,26 @@ class TopicModel:
         Returns:
             None
         """
-        self._get_top_images()
         # Iterating over the topics
-        for label, df in self._embeddings_df.groupby("label"):
+        for label, df in self.df.groupby("label"):
             if label == -1:
                 continue
-            topic, top_images = self._topics[label], self._top_images[label]
-            sampled_images = df["image_path"].sample(20, random_state=42).tolist()
-            self._view_single_topic(f"output/topic{label+1}.png", sampled_images, topic)
-            self._view_single_topic(f"output/topic{label+1}-top.png", top_images, topic)
-            self._view_single_topic(f"output/images{label+1}-top.png", top_images, show_text=False)
+            topic, image_topic = self._topics[label], self._image_topics[label]
+            image_sample = df["image_path"].sample(self._top_n_images, random_state=0).tolist()
+            self._view_single_topic(f"output/topic{label+1}.png", image_sample, topic)
+            self._view_single_topic(f"output/topic{label+1}-top.png", image_topic, topic)
+            self._view_single_topic(f"output/image{label+1}-top.png", image_topic)
 
     def _view_single_topic(self,
                            path: str,
                            images: List[str],
-                           topic: List[str] = None,
-                           show_text: bool = True) -> None:
+                           topic: List[str] = None) -> None:
         """Visualizes a single topic.
 
         Args:
             path (str): The path to save the figure.
             images (List[str]): The images to show.
             topic (List[str], optional): The topic to show. Defaults to None.
-            show_text (bool, optional): Whether to show the text. Defaults to True.
 
         Returns:
             None
@@ -330,7 +334,7 @@ class TopicModel:
             ax.axis("off")
         plt.tight_layout()
 
-        if not show_text:
+        if topic is None:
             plt.savefig(path, format="png", dpi=300, bbox_inches="tight")
             plt.close()
             return

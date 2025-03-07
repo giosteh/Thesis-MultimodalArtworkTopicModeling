@@ -25,27 +25,26 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 
-# Method to load a model
-def load_model(base_model: str, model_path: str) -> nn.Module:
-    """Loads the finetuned model.
+def load_model(base_model: str, model_path: str, return_preprocess: bool = False) -> nn.Module:
+    """Loads a pretrained or fine-tuned CLIP model.
 
     Args:
         base_model (str): The base model to use.
         model_path (str): The path to the finetuned model.
+        return_preprocess (bool, optional): Whether to return the preprocess. Defaults to False.
 
     Returns:
         nn.Module: The finetuned model.
     """
-    model, _ = clip.load(base_model, device=device, jit=False)
-    if not model_path:
-        model.float()
-        model.eval()
-        return model
-    # Loading a finetuned version
-    checkpoint = torch.load(model_path)
-    model.load_state_dict(checkpoint)
+    model, preprocess = clip.load(base_model, device=device, jit=False)    
+    if model_path:
+        checkpoint = torch.load(model_path)
+        model.load_state_dict(checkpoint)
     model.float()
     model.eval()
+
+    if return_preprocess:
+        return model, preprocess
     return model
 
 
@@ -327,7 +326,6 @@ class CLIPFinetuner:
 
             logits_per_image, logits_per_text = self._model(images, texts)
             ground_truth = torch.arange(len(images), dtype=torch.long).to(device)
-
             loss_img = F.cross_entropy(logits_per_image, ground_truth)
             loss_txt = F.cross_entropy(logits_per_text, ground_truth)
             loss = (loss_img + loss_txt) / 2
@@ -358,7 +356,6 @@ class CLIPFinetuner:
 
                 logits_per_image, logits_per_text = self._model(images, texts)
                 ground_truth = torch.arange(len(images), dtype=torch.long).to(device)
-
                 loss_img = F.cross_entropy(logits_per_image, ground_truth)
                 loss_txt = F.cross_entropy(logits_per_text, ground_truth)
                 loss = (loss_img + loss_txt) / 2
@@ -493,4 +490,4 @@ if __name__ == "__main__":
     if args.load:
         finetuner.load_model(args.load)
 
-    finetuner.train(epochs=args.epochs, verbose=True)
+    finetuner.fit(epochs=args.epochs, verbose=True)

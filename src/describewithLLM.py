@@ -3,6 +3,7 @@ Classes and functions for explaining the clusters using LLMs.
 """
 
 from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
+from metrics import CaptionEmbeddingDistance
 from finetuneCLIP import load_model
 from typing import List, Tuple
 from PIL import Image
@@ -62,15 +63,15 @@ class Explainer:
 
 
     def __call__(self,
-                 sample_paths: List[str],
                  saving_path: str,
+                 image_paths: List[str],
                  topics: List[List[str]],
                  rich_prompt: bool = False) -> None:
         """Explains the topics using the LLM.
 
         Args:
-            sample_paths (List[str]): The paths to the sample images.
-            saving_path (str): The path to save the descriptions.
+            saving_path (str): The path to save the results.
+            image_paths (List[str]): The paths to the topic images.
             topics (List[List[str]]): The topics to explain.
             rich_prompt (bool, optional): Whether to use a comprehensive prompt_text. Defaults to False.
         
@@ -81,13 +82,12 @@ class Explainer:
         # Setting up the prompts and generating the descriptions
         prompts = [self._setup_prompt(topic, rich_prompt) for topic in self._topics]
         descriptions = [
-            self.describe(path, prompt) for path, prompt in zip(sample_paths, prompts)
+            self.describe(image_path, prompt_text)
+            for image_path, prompt_text in zip(image_paths, prompts)
         ]
-        # Saving the descriptions
-        saving = {
-            "descriptions": descriptions,
-            "WEPS": self.cross_similarity(descriptions)
-        }
+
+        metric = CaptionEmbeddingDistance()
+        saving = {"descriptions": descriptions, "CED": metric(descriptions)}
         with open(saving_path, "wb") as f:
             pickle.dump(saving, f)
 
@@ -147,20 +147,3 @@ class Explainer:
         description = str(description).split("[/INST]")[-1].strip()
         print(f"Description: {description}")
         return description
-
-    def cross_similarity(self, descriptions: List[str]) -> List[float]:
-        """Computes the cross similarity between the descriptions.
-
-        Args:
-            descriptions (List[str]): The descriptions.
-
-        Returns:
-            List[float]: The cross similarity.
-        """
-        with torch.no_grad():
-            texts = clip.tokenize(descriptions).to(device)
-            texts = self._embedding_model.encode_text(texts)
-            texts = texts / texts.norm(dim=-1, keepdim=True)
-
-            similarities = (texts @ texts.t()).fill_diagonal_(0).cpu().numpy()
-        return (similarities.sum(axis=1) / (similarities.shape[1] - 1)).tolist()
