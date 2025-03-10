@@ -1,9 +1,9 @@
 """
-Classes and functions for explaining the clusters using LLMs.
+Classes and functions for describing topics with LLMs.
 """
 
 from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
-from metrics import CaptionEmbeddingDistance
+from metrics import CaptionEmbeddingSimilarity
 from finetuneCLIP import load_model
 from typing import List, Tuple
 from PIL import Image
@@ -32,11 +32,11 @@ Avoid general information and focus only on the most relevant aspects of the art
 """
 
 
-class Explainer:
+class Descriptor:
 
     def __init__(self,
                  embedding_model: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt"),
-                 pov_names: List[str] = ["Genre", "Subject", "Medium", "Style"]) -> None:
+                 pov_names: List[str] = ["Genre", "Subject", "Medium", "Style"]):
         """Initializes the explainer.
 
         Args:
@@ -63,47 +63,49 @@ class Explainer:
 
 
     def __call__(self,
-                 saving_path: str,
+                 output_dir: str,
                  image_paths: List[str],
-                 topics: List[List[str]],
-                 rich_prompt: bool = False) -> None:
+                 topics: List[List[str]] = None) -> None:
         """Explains the topics using the LLM.
 
         Args:
-            saving_path (str): The path to save the results.
+            output_dir (str): The path to the output directory.
             image_paths (List[str]): The paths to the topic images.
             topics (List[List[str]]): The topics to explain.
-            rich_prompt (bool, optional): Whether to use a comprehensive prompt_text. Defaults to False.
         
         Returns:
             None
         """
-        self._topics = topics
-        # Setting up the prompts and generating the descriptions
-        prompts = [self._setup_prompt(topic, rich_prompt) for topic in self._topics]
+        if topics is None:
+            prompts = [BASIC_PROMPT] * len(image_paths)
+        else:
+            prompts = [self._setup_prompt(topic) for topic in topics]
+        # Describing the topics
         descriptions = [
             self.describe(image_path, prompt_text)
             for image_path, prompt_text in zip(image_paths, prompts)
         ]
 
-        metric = CaptionEmbeddingDistance()
-        saving = {"descriptions": descriptions, "CED": metric(descriptions)}
-        with open(saving_path, "wb") as f:
+        metric = CaptionEmbeddingSimilarity()
+        score = metric(descriptions)
+        print(f"CES: {score:.4f}")
+        saving = {"descriptions": descriptions, "score": score}
+        # Saving the results
+        with open(f"{output_dir}/descr.pkl", "wb") as f:
             pickle.dump(saving, f)
+        
+        return descriptions, score
 
-    def _setup_prompt(self, topic: List[List[str]], rich_prompt: bool) -> str:
+    def _setup_prompt(self, topic: List[str] = None) -> str:
         """Sets up the prompt text.
 
         Args:
-            topic (List[List[str]]): The topic to explain.
-            rich_prompt (bool): Whether to use a comprehensive prompt_text.
+            topic (List[str]): The topic to explain.
 
         Returns:
             str: The prompt text.
         """
-        prompt_text = BASIC_PROMPT
-
-        if rich_prompt:
+        if topic is not None:
             prompt_text = RICH_PROMPT
             povs = np.array_split(topic, len(self._pov_names))
             extra_content = "\n".join(

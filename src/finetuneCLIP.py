@@ -54,7 +54,7 @@ class ImageCaptionDataset(Dataset):
                  images_dir: str = "data/images/imagesf2",
                  captions_file_path: str = "data/artwork_captions.txt",
                  apply_augmentations: bool = False,
-                 path_only: bool = False) -> None:
+                 path_only: bool = False):
         """Initializes the ImageTextDataset.
 
         Args:
@@ -119,7 +119,7 @@ class CLIPFinetuner:
                  augment: bool = False,
                  unfreeze_from: int = 6,
                  unfreeze_every: int = 2,
-                 models_dir: str = "models") -> None:
+                 models_dir: str = "models"):
         """Initializes the CLIPFinetuner.
 
         Args:

@@ -14,6 +14,7 @@ from numba.core.errors import NumbaWarning
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 from typing import Tuple, List
+from fcmeans import FCM
 from umap import UMAP
 from PIL import Image
 import pandas as pd
@@ -21,6 +22,7 @@ import numpy as np
 import hdbscan
 import pickle
 import clip
+import os
 import torch
 import warnings
 
@@ -42,7 +44,7 @@ class EmbeddingDatasetBuilder:
                  base_model: str = "ViT-B/32",
                  model_path: str = "models/finetuned-v2.pt",
                  paths_dataset: ImageCaptionDataset = ImageCaptionDataset(path_only=True),
-                 dataset: ImageCaptionDataset = ImageCaptionDataset()) -> None:
+                 dataset: ImageCaptionDataset = ImageCaptionDataset()):
         """Initializes the EmbeddingDatasetBuilder.
         
         Args:
@@ -80,6 +82,7 @@ class EmbeddingDatasetBuilder:
         return pd.DataFrame(rows)
 
 
+
 class TopicModel:
 
     def __init__(self,
@@ -87,11 +90,11 @@ class TopicModel:
                  embeddings_path: str = "data/finetuned_embeddings.csv",
                  vocabulary_path: str = "data/topic_vocab.pkl",
                  pov_names: List[str] = ["Genre", "Subject", "Medium", "Style"],
-                 min_topic_size: int = 20,
+                 min_topic_size: int = 100,
                  top_n_images: int = 20,
-                 top_n_words: int = 5,
+                 top_n_words: int = 3,
                  nr_topics: int = 10,
-                 reduced_dim: int = 5) -> None:
+                 reduced_dim: int = 5):
         """Initializes the TopicModel.
         
         Args:
@@ -101,7 +104,7 @@ class TopicModel:
             pov_names (List[str]): The pov names. Defaults to ["Genre", "Subject", "Medium", "Style"].
             min_topic_size (int): The minimum topic size. Defaults to 20.
             top_n_images (int): The number of top images to use. Defaults to 20.
-            top_n_words (int): The number of top words to use. Defaults to 5.
+            top_n_words (int): The number of top words to use. Defaults to 3.
             nr_topics (int): The number of topics to find. Defaults to 10.
             reduced_dim (int): The dimension to reduce the embeddings to. Defaults to 5.
         """
@@ -127,6 +130,7 @@ class TopicModel:
         self._scores = {}
         self._image_topics = []
 
+        self.output_dir = None
         self._nr_clusters = 0
         self._method = None
         # Initializing the clustering models
@@ -135,7 +139,12 @@ class TopicModel:
                 n_clusters=nr_topics,
                 init="k-means++",
                 n_init=10,
-                max_iter=10000,
+                max_iter=5000,
+                random_state=42
+            ),
+            "fcmeans": FCM(
+                n_clusters=nr_topics,
+                max_iter=500,
                 random_state=42
             ),
             "hdbscan": hdbscan.HDBSCAN(
@@ -148,11 +157,11 @@ class TopicModel:
         self._umap_model = UMAP(
             n_components=reduced_dim,
             n_neighbors=15,
-            min_dist=.0,
+            min_dist=0.0,
             metric="cosine",
             random_state=42
         )
-    
+
 
     def fit(self, method: str = "kmeans", reduce: bool = True) -> None:
         """Fits the topic modeler.
@@ -166,7 +175,11 @@ class TopicModel:
         """
         method = method.lower()
         self._method = method
-        # Fitting the dimensionality reduction model
+        self.output_dir = f"output/{method}{self._nr_topics}"
+        self.output_dir = f"{self.output_dir}R" if reduce else self.output_dir
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Fitting the umap model
         if reduce:
             embeddings = self._umap_model.fit_transform(self._embeddings)
         else:
@@ -175,20 +188,27 @@ class TopicModel:
         # Fitting the chosen clustering model
         self._model[method].fit(embeddings)
         self._labels = self._model[method].labels_
-        self._probs = getattr(self._model[method], "probabilities_", None)
-        self.df["label"] = self._labels
-
-        # Modeling the topics
-        self._compute_centers()
+        if method == "kmeans":
+            self._scores["Inertia"] = self._model[method].inertia_
+            self._centers = self._model[method].cluster_centers_
+        elif method == "fcmeans":
+            self._labels = self._model[method].predict(embeddings)
+            self._centers = self._model[method].centers
+        else:
+            self._probs = getattr(self._model[method], "probabilities_", None)
+            self._compute_centers()
+        self._nr_clusters = len(self._centers)
+        
         # Extracting word and image topics
         self._extract_topics()
         self._extract_image_topics()
+        self._evaluate()
 
-        self._evaluate_topics()
-        # Visualizing and saving
-        self._view_latent_space()
         self._view_topics()
+        self._view_latent_space()
         self._save_results()
+
+        return self._topics, self._image_topics, self._scores
 
     def _compute_centers(self) -> None:
         """Computes the cluster centers according to the clustering method.
@@ -196,15 +216,12 @@ class TopicModel:
         Returns:
             None
         """
-        labels_filtered = self._labels[self._labels != -1]
-        unique_labels = np.unique(labels_filtered)
-        self._nr_clusters = len(unique_labels)
-        print(f"Nr. of clusters: {self._nr_clusters}")
-        self._scores["Inertia"] = getattr(self._model[self._method], "inertia_", None)
-
+        unique_labels = np.unique(self._labels)
         weighted = self._probs is not None
         # Computing the cluster centers
         for label in unique_labels:
+            if label == -1:
+                continue
             mask = self._labels == label
             center = self._embeddings[mask].mean(axis=0)
             if weighted:
@@ -249,7 +266,7 @@ class TopicModel:
         if self._nr_clusters <= self._nr_topics:
             return
 
-    def _evaluate_topics(self) -> None:
+    def _evaluate(self) -> None:
         """Evaluates the topics computing diversity and coherence metrics.
 
         Returns:
@@ -276,7 +293,7 @@ class TopicModel:
             None
         """
         saving = {"topics": self._topics, "scores": self._scores}
-        with open("output/results.pkl", "wb") as f:
+        with open(f"{self.output_dir}/results.pkl", "wb") as f:
             pickle.dump(saving, f)
     
     def _extract_image_topics(self) -> None:
@@ -309,9 +326,9 @@ class TopicModel:
                 continue
             topic, image_topic = self._topics[label], self._image_topics[label]
             image_sample = df["image_path"].sample(self._top_n_images, random_state=0).tolist()
-            self._view_single_topic(f"output/topic{label+1}.png", image_sample, topic)
-            self._view_single_topic(f"output/topic{label+1}-top.png", image_topic, topic)
-            self._view_single_topic(f"output/image{label+1}-top.png", image_topic)
+            self._view_single_topic(f"{self.output_dir}/topic{label+1}.png", image_sample, topic)
+            self._view_single_topic(f"{self.output_dir}/topic{label+1}T.png", image_topic, topic)
+            self._view_single_topic(f"{self.output_dir}/image{label+1}T.png", image_topic)
 
     def _view_single_topic(self,
                            path: str,
@@ -379,5 +396,5 @@ class TopicModel:
                     c=sampled_labels, cmap="plasma", s=30, marker="o")
         plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=topics_range, cmap="plasma", s=400, marker="x")
         plt.title("Latent Space in 2D")
-        plt.savefig("results/embeddings.png", format="png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"{self.output_dir}/latentspace.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()

@@ -18,7 +18,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class CaptionsBuilder:
 
-    def __init__(self, saving_path: str = "data/artwork_captions.txt") -> None:
+    def __init__(self, saving_path: str = "data/artwork_captions.txt"):
         """Initializes the CaptionsBuilder.
 
         Args:
@@ -135,7 +135,7 @@ class CaptionsBuilder:
 
 class ImageAugmenter:
     
-    def __init__(self) -> None:
+    def __init__(self):
         """Initializes the image augmenter.
         """
         _, self._clip_preprocess = clip.load("ViT-B/32", device=device, jit=False)
@@ -205,7 +205,7 @@ class ImageAugmenter:
 
 class TextAugmenter:
     
-    def __init__(self) -> None:
+    def __init__(self):
         """Initializes the text augmenter.
         """
         self._augment = self._random_augmentation()

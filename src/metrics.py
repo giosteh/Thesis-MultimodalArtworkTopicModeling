@@ -19,7 +19,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class Metric(ABC):
     @abstractmethod
-    def __init__(self) -> None:
+    def __init__(self):
         pass
 
     @abstractmethod
@@ -29,7 +29,7 @@ class Metric(ABC):
 
 class TopicDiversity(Metric):
 
-    def __init__(self, topk: int = 10) -> None:
+    def __init__(self, topk: int = 10):
         """Initializes the TopicDiversity metric.
 
         Args:
@@ -61,7 +61,7 @@ class TopicDiversity(Metric):
 
 class ImageEmbeddingCoherence(Metric):
 
-    def __init__(self, topk: int = 10, encoder: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt")) -> None:
+    def __init__(self, topk: int = 10, encoder: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt")):
         """Initializes the ImageEmbeddingCoherence metric.
 
         Args:
@@ -105,7 +105,7 @@ class ImageEmbeddingCoherence(Metric):
 
 class ImageEmbeddingPairwiseSimilarity(Metric):
 
-    def __init__(self, topk: int = 10, encoder: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt")) -> None:
+    def __init__(self, topk: int = 10, encoder: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt")):
         """Initializes the ImageEmbeddingPairwiseSimilarity metric.
 
         Args:
@@ -151,10 +151,10 @@ class ImageEmbeddingPairwiseSimilarity(Metric):
         return result
 
 
-class CaptionEmbeddingDistance(Metric):
+class CaptionEmbeddingSimilarity(Metric):
 
-    def __init__(self, encoder: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt")) -> None:
-        """Initializes the CaptionEmbeddingDistance metric.
+    def __init__(self, encoder: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt")):
+        """Initializes the CaptionEmbeddingSimilarity metric.
 
         Args:
             encoder (Tuple[str, str], optional): The encoder model to use. Defaults to ("ViT-B/32", "models/finetuned-v2.pt").
@@ -163,7 +163,7 @@ class CaptionEmbeddingDistance(Metric):
         self._encoder = load_model(encoder[0], encoder[1])
 
     def __call__(self, topics: List[str]) -> float:
-        """Computes the CaptionEmbeddingDistance metric.
+        """Computes the CaptionEmbeddingSimilarity metric.
 
         Args:
             topics (List[str]): The topics to evaluate.
@@ -179,7 +179,7 @@ class CaptionEmbeddingDistance(Metric):
             E = self._encoder.encode_text(clip.tokenize([c.lower() for c in topics]).to(device))
         E = E / E.norm(dim=-1, keepdim=True)
         E = E.cpu().numpy()
-        # Performing cosine distance between embeddings
-        distance = np.sum(pairwise_distances(E, metric="cosine"))
-        result = distance / (len(topics) * (len(topics) - 1))
+        # Performing cosine similarity between topic descriptions
+        similarity = np.sum(1 - pairwise_distances(E, metric="cosine") - np.diag(np.ones(len(topics))))
+        result = similarity / (len(topics) * (len(topics) - 1))
         return result
