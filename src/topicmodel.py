@@ -19,19 +19,19 @@ from umap import UMAP
 from PIL import Image
 import pandas as pd
 import numpy as np
+import warnings
 import hdbscan
 import pickle
+import torch
 import clip
 import os
-import torch
-import warnings
 
 
 # Warnings handling
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 warnings.filterwarnings("ignore", category=NumbaWarning)
-warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"

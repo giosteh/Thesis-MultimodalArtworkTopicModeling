@@ -49,30 +49,34 @@ class CaptionsBuilder:
                     ?artwork artgraph:hasStyle ?style .
                     ?style artgraph:name ?styleName .
                 }
+                OPTIONAL {
+                    ?artwork artgraph:hasPeriod ?period .
+                    ?period artgraph:name ?periodName .
+                }
+                OPTIONAL {
+                    ?artwork artgraph:createdBy ?artist .
+                    ?artist artgraph:name ?artistName .
+                }
             }
         """
     
-    def _build_caption(self, individual: Dict[str, str], tags_list: List[str]) -> str:
+    def _build_caption(self, artwork: Dict[str, str], tags_list: List[str]) -> str:
         """Builds a caption for the given artwork, using the information from the SPARQL query.
         
-        The caption is built by concatenating the following strings:
-        - genre (if present)
-        - media (if present)
-        - tags (if present)
-        - style (if present)
-
-        The final caption is then stripped of any extra spaces and any parentheses containing numbers are removed.
+        The caption is built by concatenating the genre, media, tags, style, artist and period of the artwork.
 
         Args:
-            individual (Dict[str, str]): The dictionary containing the information from the SPARQL query.
+            artwork (Dict[str, str]): The dictionary containing the information from the SPARQL query.
             tags_list (List[str]): The list of tags associated with the artwork.
 
         Returns:
             str: The built caption.
         """
-        genre = str(individual["genre"]).strip().lower() if individual["genre"] else None
-        media = str(individual["media"]).strip().lower() if individual["media"] else None
-        style = str(individual["style"]).strip().lower() if individual["style"] else None
+        genre = str(artwork["genre"]).strip().lower() if artwork["genre"] else None
+        media = str(artwork["media"]).strip().lower() if artwork["media"] else None
+        style = str(artwork["style"]).strip().lower() if artwork["style"] else None
+        artist = str(artwork["artist"]).strip().lower() if artwork["artist"] else None
+        period = str(artwork["period"]).strip().lower() if artwork["period"] else None
         # Genre substring
         genre_str = re.sub(r"\([^()]*\)", "", genre) if genre else None
         genre_str = genre_str.replace("painting", "") if genre_str else None
@@ -81,15 +85,21 @@ class CaptionsBuilder:
         media_str = f"rendered in {media} " if media else ""
         # Tags substring
         tags_list = [tag for tag in tags_list if not bool(re.search(r"[&#;]", tag))]
-        tags_list = [re.sub(r"[a-z]\.([a-z]\.)*", "", tag) for tag in tags_list]
-        tags_list = tags_list[:3]
+        tags_list = [re.sub(r"[a-z]\.([a-z]\.)*", "", tag) for tag in tags_list[:3]]
         tags_str = ", ".join([" ".join(tag.split("-")) for tag in tags_list]) if tags_list else None
         tags_str = tags_str.replace(" and", ",") if tags_str else None
-        tag_str = f"displaying {tags_str} " if tags_str else ""
+        tags_str = f"displaying {tags_str} " if tags_str else ""
         # Style substring
         style_str = f"in a {style} manner " if style else ""
+        # Artist substring
+        artist_str = " ".join(artist.split("-")) if artist else None
+        artist_str = re.sub(r"[-]+", "", artist_str) if artist_str else None
+        artist_str = f"made by {artist_str} " if artist_str else ""
+        # Period substring
+        period_str = re.sub(r"paintings?", "", period.replace("period", "")) if period else None
+        period_str = f"during {period_str} " if period_str else ""
 
-        caption = f"{genre_str}painting {media_str}{tag_str}{style_str}"
+        caption = f"{genre_str}painting {media_str}{tags_str}{style_str}{artist_str}{period_str}"
         caption = " ".join(caption.split())
         return caption.strip()
 
@@ -106,29 +116,31 @@ class CaptionsBuilder:
         kg.parse(kg_path, format="turtle")
 
         results = kg.query(self._sparql_query)
-        individuals = {}
+        artworks = {}
 
         for row in results:
             name = str(row.artworkName).strip()
             tag_name = row.get("tagName", None)
 
-            if name not in individuals:
-                individuals[name] = {
+            if name not in artworks:
+                artworks[name] = {
                     "genre": row.get("genreName", None),
                     "style": row.get("styleName", None),
                     "media": row.get("mediaName", None),
+                    "artist": row.get("artistName", None),
+                    "period": row.get("periodName", None),
                     "tags": []
                 }
             # Handling tags
             if tag_name:
                 tag_name = str(tag_name).strip().lower()
-                if tag_name not in individuals[name]["tags"]:
-                    individuals[name]["tags"].append(tag_name)
+                if tag_name not in artworks[name]["tags"]:
+                    artworks[name]["tags"].append(tag_name)
         
         with open(self._saving_path, "w") as f:
-            for name, individual in individuals.items():
-                tags = individual["tags"]
-                caption = self._build_caption(individual, tags)
+            for name, artwork in artworks.items():
+                tags = artwork["tags"]
+                caption = self._build_caption(artwork, tags)
                 f.write(f"{name}\t{caption}\n")
 
 

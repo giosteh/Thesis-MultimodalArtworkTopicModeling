@@ -2,19 +2,19 @@
 Classes and functions for fine-tuning the CLIP model.
 """
 
-import clip
-import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
+from preprocessing import ImageAugmenter, TextAugmenter
 from typing import Tuple
 from PIL import Image
 import argparse
 import pickle
+import torch
+import clip
 import os
 
-from preprocessing import ImageAugmenter, TextAugmenter
 
 # Setting the seed
 torch.manual_seed(42)

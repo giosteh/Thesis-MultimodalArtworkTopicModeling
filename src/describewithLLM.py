@@ -10,7 +10,6 @@ from PIL import Image
 import numpy as np
 import warnings
 import pickle
-import clip
 import torch
 
 # General settings
@@ -22,12 +21,12 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 BASIC_PROMPT = """
-Given this image containing a sample of artworks from a cluster, generate a single sentence overall description of the cluster which must be straight to the point.
+Given this image containing the most representative artworks from a topic, write a short caption to describe genre, subject, medium and style of the topic.
 Avoid general information and focus only on the most relevant aspects of the artworks.
 """
 
 RICH_PROMPT = """
-Given this image containing a sample of artworks from a cluster and the following lists of terms which describe it, generate a single sentence overall description of the cluster which must be straight to the point.
+Given this image containing the most representative artworks from a topic and the following list of words describing the topic, write a short caption to describe the topic.
 Avoid general information and focus only on the most relevant aspects of the artworks.\n
 """
 
