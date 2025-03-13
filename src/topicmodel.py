@@ -2,12 +2,12 @@
 Classes and functions for topic modeling of artworks.
 """
 
-from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
 from metrics import TopicDiversity, ImageEmbeddingPairwiseSimilarity, ImageEmbeddingCoherence
 from finetuneCLIP import ImageCaptionDataset, load_model
+from sklearn.model_selection import train_test_split
 from scipy.sparse import SparseEfficiencyWarning
 from numba.core.errors import NumbaWarning
+from torch.utils.data import DataLoader
 from sklearn.cluster import KMeans
 from sklearn.cluster import Birch
 import matplotlib.pyplot as plt
