@@ -2,13 +2,10 @@
 Classes and functions for topic modeling of artworks.
 """
 
-from collections import defaultdict
 from torch.utils.data import DataLoader
-from sklearn.metrics import silhouette_score
 from sklearn.model_selection import train_test_split
 from metrics import TopicDiversity, ImageEmbeddingPairwiseSimilarity, ImageEmbeddingCoherence
 from finetuneCLIP import ImageCaptionDataset, load_model
-from sklearn.metrics.pairwise import cosine_similarity
 from scipy.sparse import SparseEfficiencyWarning
 from numba.core.errors import NumbaWarning
 from sklearn.cluster import KMeans
@@ -21,7 +18,6 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 import warnings
-import hdbscan
 import pickle
 import torch
 import clip
@@ -55,6 +51,7 @@ class EmbeddingDatasetBuilder:
             dataset (ImageCaptionDataset): The dataset. Defaults to ImageCaptionDataset().
         """
         self._finetuned_model = load_model(base_model, model_path)
+        # Defining the dataloaders
         self._paths_loader = DataLoader(paths_dataset, batch_size=1, shuffle=False)
         self._data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
 
@@ -321,6 +318,7 @@ class TopicModel:
                 continue
             topic, image_topic = self._topics[label], self._image_topics[label]
             image_sample = df["image_path"].sample(min(self._top_n_images, len(df)), random_state=0).tolist()
+
             self._view_single_topic(f"{self.output_dir}/topic{label+1}.png", image_sample, topic)
             self._view_single_topic(f"{self.output_dir}/topic{label+1}T.png", image_topic, topic)
             self._view_single_topic(f"{self.output_dir}/image{label+1}T.png", image_topic)

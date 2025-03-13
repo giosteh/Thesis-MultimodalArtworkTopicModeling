@@ -3,8 +3,8 @@ Classes and functions for topic modeling evaluation metrics.
 """
 
 from sklearn.metrics import pairwise_distances
-from abc import ABC, abstractmethod
 from finetuneCLIP import load_model
+from abc import ABC, abstractmethod
 from itertools import combinations
 from typing import List, Tuple
 from PIL import Image
@@ -147,7 +147,7 @@ class ImageEmbeddingPairwiseSimilarity(Metric):
             avg_similarity = similarity / (self.topk * self.topk)
             result += avg_similarity
         # Averaging the similarity
-        result /= ((len(topics) * (len(topics) - 1)) / 2)
+        result /= (len(topics) * (len(topics) - 1) / 2)
         return result
 
 
