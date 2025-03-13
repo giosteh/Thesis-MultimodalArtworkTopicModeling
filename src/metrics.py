@@ -147,7 +147,7 @@ class ImageEmbeddingPairwiseSimilarity(Metric):
             avg_similarity = similarity / (self.topk * self.topk)
             result += avg_similarity
         # Averaging the similarity
-        result /= len(topic_combinations)
+        result /= ((len(topics) * (len(topics) - 1)) / 2)
         return result
 
 
