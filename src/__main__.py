@@ -131,6 +131,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.describe:
+        # topic modeling
         modeling()
     else:
+        # topic describing
         describing()
