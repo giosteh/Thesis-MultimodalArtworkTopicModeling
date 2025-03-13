@@ -13,9 +13,9 @@ import pickle
 
 def main():
     # 0. experiments setup
-    nr_topics_range = range(3, 29)
-    results = {"kmeans": {True: {}, False: {}}, "fcmeans": {True: {}, False: {}}}
-    metrics = ["TD", "IEPS", "IEC", "CES", "Inertia"]
+    nr_topics_range = range(3, 21)
+    results = {"kmeans": {True: {}, False: {}}, "birch": {True: {}, False: {}}}
+    metrics = ["TD", "IEPS", "IEC", "CES"]
     for m in results.keys():
         for r in results[m].keys():
             for metric in metrics:
@@ -24,13 +24,12 @@ def main():
     # 1. running the experiments
     descriptor = Descriptor()
     for nr_topics in nr_topics_range:
-        tm = TopicModel(nr_topics=nr_topics)
         for m in results.keys():
             for r in results[m].keys():
+                print(f"Experiment with {m.upper()} and UMAP={r}.")
+                tm = TopicModel(nr_topics=nr_topics)
                 _, image_topics, scores = tm.fit(method=m, reduce=r)
                 _, scores["CES"] = descriptor(tm.output_dir, image_topics)
-                if "Inertia" not in scores:
-                    scores["Inertia"] = 0
                 for metric in metrics:
                     results[m][r][metric].append(scores[metric])
 
@@ -38,6 +37,8 @@ def main():
     with open("results.pkl", "wb") as f:
         pickle.dump(results, f)
     plot_results(results, nr_topics_range, metrics)
+    plot_summary_table(results, metrics)
+
 
 def plot_results(results, nr_topics_range, metrics):
     """Plots the results.
@@ -55,11 +56,8 @@ def plot_results(results, nr_topics_range, metrics):
         color_idx = 0
         for m in results.keys():
             for r in results[m].keys():
-                mean_value = np.mean(results[m][r][metric])
-                std_value = np.std(results[m][r][metric])
-                label = f"{m.capitalize()} (μ={mean_value:.2f}, std={std_value:.2f})"
-                label = f"UMAP+{label}" if r else label
-                plt.plot(nr_topics_range, results[m][r][metric], label=label, color=colors[color_idx], linewidth=1.7)
+                label = f"UMAP+{m.upper()}" if r else f"{m.upper()}"
+                plt.plot(nr_topics_range, results[m][r][metric], label=label, color=colors[color_idx], linewidth=1.5)
                 color_idx += 1
         
         plt.xlabel("Number of Topics")
@@ -68,6 +66,35 @@ def plot_results(results, nr_topics_range, metrics):
         plt.title(f"Trend of {metric} over Number of Topics")
         plt.savefig(f"{metric}.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
+
+def plot_summary_table(results, metrics):
+    """Plots the summary table.
+
+    Args:
+        results (dict): The results dictionary.
+        metrics (list): The metrics to plot.
+    """
+    summary_data = []
+    for m in results.keys():
+        for r in results[m].keys():
+            name = f"UMAP+{m.upper()}" if r else f"{m.upper()}"
+            row = [name]
+            for metric in metrics:
+                mean_value = np.mean(results[m][r][metric])
+                std_value = np.std(results[m][r][metric])
+                row.append(f"{mean_value:.2f} ± {std_value:.2f}")
+            summary_data.append(row)
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.axis("tight")
+    ax.axis("off")
+    table = ax.table(cellText=summary_data, colLabels=["Method"] + metrics, cellLoc='center', loc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(14)
+    table.auto_set_column_width([i for i in range(len(metrics) + 1)])
+    plt.title("Summary of Metrics (Mean ± Std Dev)")
+    plt.savefig("summary_table.png", format="png", dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 

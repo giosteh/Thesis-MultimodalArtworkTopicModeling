@@ -12,6 +12,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from scipy.sparse import SparseEfficiencyWarning
 from numba.core.errors import NumbaWarning
 from sklearn.cluster import KMeans
+from sklearn.cluster import Birch
 import matplotlib.pyplot as plt
 from typing import Tuple, List
 from fcmeans import FCM
@@ -125,13 +126,11 @@ class TopicModel:
         self._nr_topics = nr_topics
         self._pov_names = pov_names
 
+        self._centers, self._scores = [], {}
+        self._topics, self._image_topics = [], []
         self._labels, self._probs = None, None
-        self._centers, self._topics = [], []
-        self._scores = {}
-        self._image_topics = []
 
         self.output_dir = None
-        self._nr_clusters = 0
         self._method = None
         # Initializing the clustering models
         self._model = {
@@ -147,10 +146,10 @@ class TopicModel:
                 max_iter=500,
                 random_state=42
             ),
-            "hdbscan": hdbscan.HDBSCAN(
-                min_cluster_size=min_topic_size,
-                metric="euclidean",
-                cluster_selection_method="eom"
+            "birch": Birch(
+                n_clusters=nr_topics,
+                threshold=0.3,
+                branching_factor=150
             )
         }
         # Initializing the dimensionality reduction model
@@ -178,7 +177,11 @@ class TopicModel:
         self.output_dir = f"output/{method}{self._nr_topics}"
         self.output_dir = f"{self.output_dir}R" if reduce else self.output_dir
         os.makedirs(self.output_dir, exist_ok=True)
-        
+        # Resetting the results
+        self._centers, self._scores = [], {}
+        self._topics, self._image_topics = [], []
+        self._labels, self._probs = None, None
+
         # Fitting the umap model
         if reduce:
             embeddings = self._umap_model.fit_transform(self._embeddings)
@@ -187,18 +190,16 @@ class TopicModel:
         
         # Fitting the chosen clustering model
         self._model[method].fit(embeddings)
-        self._labels = self._model[method].labels_
-        if method == "kmeans":
-            self._scores["Inertia"] = self._model[method].inertia_
-            self._centers = self._model[method].cluster_centers_
-        elif method == "fcmeans":
+        if method == "fcmeans":
             self._labels = self._model[method].predict(embeddings)
-            self._centers = self._model[method].centers
         else:
-            self._probs = getattr(self._model[method], "probabilities_", None)
-            self._compute_centers()
-        self._nr_clusters = len(self._centers)
-        
+            self._labels = self._model[method].labels_
+        self._probs = getattr(self._model[method], "probabilities_", None)
+        self._scores["Inertia"] = getattr(self._model[method], "inertia_", None)
+        # Computing the cluster centers
+        self._compute_centers()
+
+        self.df["label"] = self._labels
         # Extracting word and image topics
         self._extract_topics()
         self._extract_image_topics()
@@ -226,7 +227,10 @@ class TopicModel:
             center = self._embeddings[mask].mean(axis=0)
             if weighted:
                 center = np.average(self._embeddings[mask], weights=self._probs[mask], axis=0)
-            self._centers.append(center)
+            # Normalizing the center
+            center = torch.from_numpy(center).float().to(device)
+            center = center / center.norm(dim=-1, keepdim=True)
+            self._centers.append(center.cpu().numpy())
 
     def _extract_topics(self) -> None:
         """Extracts the topics from the cluster centers.
@@ -256,15 +260,6 @@ class TopicModel:
             [word for pov in topics for word, _ in pov[i]]
             for i in range(self._nr_topics)
         ]
-
-    def _merge_topics(self) -> None:
-        """Merges the smallest topics until there are self._nr_topics topics.
-
-        Returns:
-            None
-        """
-        if self._nr_clusters <= self._nr_topics:
-            return
 
     def _evaluate(self) -> None:
         """Evaluates the topics computing diversity and coherence metrics.
@@ -325,7 +320,7 @@ class TopicModel:
             if label == -1:
                 continue
             topic, image_topic = self._topics[label], self._image_topics[label]
-            image_sample = df["image_path"].sample(self._top_n_images, random_state=0).tolist()
+            image_sample = df["image_path"].sample(min(self._top_n_images, len(df)), random_state=0).tolist()
             self._view_single_topic(f"{self.output_dir}/topic{label+1}.png", image_sample, topic)
             self._view_single_topic(f"{self.output_dir}/topic{label+1}T.png", image_topic, topic)
             self._view_single_topic(f"{self.output_dir}/image{label+1}T.png", image_topic)
@@ -383,18 +378,15 @@ class TopicModel:
         )
         embeddings_2d = umap_2d.fit_transform(self._embeddings)
         centers_2d = umap_2d.transform(self._centers)
-        topics_range = np.arange(self._nr_topics)
         # Considering a sample for visualization
-        embeddings = embeddings_2d[self._labels != -1]
-        labels = self._labels[self._labels != -1]
-        sample = train_test_split(embeddings, labels, train_size=.01, stratify=labels, random_state=42)
+        sample = train_test_split(embeddings_2d, self._labels, train_size=.01, stratify=self._labels, random_state=42)
         sampled_embeddings, sampled_labels = sample[0], sample[2]
 
         plt.figure(figsize=(15, 12))
         plt.tight_layout()
         plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
                     c=sampled_labels, cmap="plasma", s=30, marker="o")
-        plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=topics_range, cmap="plasma", s=400, marker="x")
+        plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=np.arange(len(self._topics)), cmap="plasma", s=400, marker="x")
         plt.title("Latent Space in 2D")
         plt.savefig(f"{self.output_dir}/latentspace.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
