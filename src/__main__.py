@@ -2,8 +2,8 @@
 Run the experiments from here.
 """
 
-from topicmodel import TopicModel
 from describewithLLM import Descriptor
+from topicmodel import TopicModel
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
