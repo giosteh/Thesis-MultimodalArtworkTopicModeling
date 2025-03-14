@@ -80,7 +80,6 @@ class EmbeddingDatasetBuilder:
         return pd.DataFrame(rows)
 
 
-
 class TopicModel:
 
     def __init__(self,
@@ -216,6 +215,7 @@ class TopicModel:
         """
         unique_labels = np.unique(self._labels)
         weighted = self._probs is not None
+        
         # Computing the cluster centers
         for label in unique_labels:
             if label == -1:
