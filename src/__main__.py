@@ -11,7 +11,7 @@ import argparse
 import pickle
 
 
-NR_TOPICS_RANGE = range(3, 21)
+NR_TOPICS_RANGE = range(2, 21, 2)
 METRICS = ["TD", "IEPS", "IEC", "CES"]
 
 
@@ -36,12 +36,12 @@ def modeling():
                 experiment_name = f"UMAP+{m.upper()}" if r else f"{m.upper()}"
                 print(f"\n<Running {experiment_name} with {nr_topics} topics>")
 
-                _, image_topics, scores = model.fit(method=m, reduce=r)
+                _, _, images_top, scores = model.fit(method=m, reduce=r)
                 results[m][r]["dir"] = model.output_dir
-                results[m][r]["topics"].append(image_topics)
+                results[m][r]["images"].append(images_top)
                 for metric in METRICS[:-1]:
                     results[m][r][metric].append(scores[metric])
-    
+        
     # 2. saving the results
     with open("output/results.pkl", "wb") as f:
         pickle.dump(results, f)
@@ -55,9 +55,9 @@ def describing():
     descriptor = Descriptor()
     for m in results.keys():
         for r in results[m].keys():
-            for image_topics in results[m][r]["topics"]:
+            for images_top in results[m][r]["images"]:
                 output_dir = results[m][r]["dir"]
-                _, score = descriptor(output_dir, image_topics)
+                _, score = descriptor(output_dir, images_top)
                 results[m][r][METRICS[-1]].append(score)
 
     # 2. saving the results

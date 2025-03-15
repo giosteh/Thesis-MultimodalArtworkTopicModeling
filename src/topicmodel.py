@@ -124,7 +124,8 @@ class TopicModel:
 
         self._centers, self._scores = [], {}
         self._topics, self._image_topics = [], []
-        self._labels, self._probs = None, None
+        self._labels, self._probs = [], []
+        self._images_top = []
 
         self.output_dir = None
         self._method = None
@@ -176,7 +177,8 @@ class TopicModel:
         # Resetting the results
         self._centers, self._scores = [], {}
         self._topics, self._image_topics = [], []
-        self._labels, self._probs = None, None
+        self._labels, self._probs = [], []
+        self._images_top = []
 
         # Fitting the umap model
         if reduce:
@@ -205,7 +207,7 @@ class TopicModel:
         self._view_latent_space()
         self._save_results()
 
-        return self._topics, self._image_topics, self._scores
+        return self._topics, self._image_topics, self._images_top, self._scores
 
     def _compute_centers(self) -> None:
         """Computes the cluster centers according to the clustering method.
@@ -322,6 +324,7 @@ class TopicModel:
             self._view_single_topic(f"{self.output_dir}/topic{label+1}.png", image_sample, topic)
             self._view_single_topic(f"{self.output_dir}/topic{label+1}T.png", image_topic, topic)
             self._view_single_topic(f"{self.output_dir}/image{label+1}T.png", image_topic)
+            self._images_top.append(f"{self.output_dir}/image{label+1}T.png")
 
     def _view_single_topic(self,
                            path: str,
