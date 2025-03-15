@@ -80,6 +80,7 @@ class EmbeddingDatasetBuilder:
         return pd.DataFrame(rows)
 
 
+
 class TopicModel:
 
     def __init__(self,
