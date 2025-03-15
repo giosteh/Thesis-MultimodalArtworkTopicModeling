@@ -20,7 +20,6 @@ import os
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
 
-
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -106,6 +105,7 @@ class ImageCaptionDataset(Dataset):
             image = self._clip_preprocess(image)
 
         return image, text
+
 
 
 class CLIPFinetuner:
@@ -319,7 +319,7 @@ class CLIPFinetuner:
         """
         self._model.train()
         total_loss = .0
-
+        # Iterating over the training set
         for images, texts in self._train_loader:
             images = images.to(device)
             texts = clip.tokenize(texts).to(device)
@@ -335,7 +335,6 @@ class CLIPFinetuner:
             self._optimizer.step()
 
             total_loss += loss.item()
-
         total_loss /= len(self._train_loader)
         return total_loss
 
@@ -348,7 +347,7 @@ class CLIPFinetuner:
         self._model.eval()
         total_loss = .0
         total_score = .0
-
+        # Iterating over the validation set
         with torch.no_grad():
             for images, texts in self._val_loader:
                 images = images.to(device)
@@ -363,11 +362,9 @@ class CLIPFinetuner:
                 score = self._clip_score(images, texts)
                 total_score += score.item()
                 total_loss += loss.item()
-
-        total_score /= len(self._val_loader)
         total_loss /= len(self._val_loader)
+        total_score /= len(self._val_loader)
         return total_loss, total_score
-
 
 
 class EarlyStopping:
