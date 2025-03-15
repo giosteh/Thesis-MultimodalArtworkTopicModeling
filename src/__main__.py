@@ -24,7 +24,7 @@ def modeling():
     }
     for m in results.keys():
         for r in results[m].keys():
-            results[m][r]["topics"] = []
+            results[m][r]["images"] = []
             for metric in METRICS[:-1]:
                 results[m][r][metric] = []
 
