@@ -176,7 +176,7 @@ class CaptionEmbeddingSimilarity(Metric):
         
         result = 0.0
         with torch.no_grad():
-            E = self._encoder.encode_text(clip.tokenize([c.lower() for c in topics]).to(device))
+            E = self._encoder.encode_text(clip.tokenize([c.lower() for c in topics]).to(device), context_length=477)
         E = E / E.norm(dim=-1, keepdim=True)
         E = E.cpu().numpy()
         # Performing cosine similarity between topic descriptions
