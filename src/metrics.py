@@ -151,10 +151,10 @@ class ImageEmbeddingPairwiseSimilarity(Metric):
         return result
 
 
-class CaptionEmbeddingSimilarity(Metric):
+class DescriptionEmbeddingSimilarity(Metric):
 
     def __init__(self, encoder: Tuple[str, str] = ("ViT-B/32", "models/finetuned-v2.pt")):
-        """Initializes the CaptionEmbeddingSimilarity metric.
+        """Initializes the DescriptionEmbeddingSimilarity metric.
 
         Args:
             encoder (Tuple[str, str], optional): The encoder model to use. Defaults to ("ViT-B/32", "models/finetuned-v2.pt").
@@ -163,7 +163,7 @@ class CaptionEmbeddingSimilarity(Metric):
         self._encoder = load_model(encoder[0], encoder[1])
 
     def __call__(self, topics: List[str]) -> float:
-        """Computes the CaptionEmbeddingSimilarity metric.
+        """Computes the DescriptionEmbeddingSimilarity metric.
 
         Args:
             topics (List[str]): The topics to evaluate.

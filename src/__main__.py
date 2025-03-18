@@ -12,14 +12,14 @@ import pickle
 
 
 NR_TOPICS_RANGE = range(2, 21, 2)
-METRICS = ["TD", "IEPS", "IEC", "CES"]
+METRICS = ["TD", "IEPS", "IEC", "DES"]
 
 
 def modeling():
     # 0. experiments setup
     results = {
         "kmeans": {False: {}, True: {}},
-        "birch": {False: {}, True: {}},
+        "birch": {True: {}},
         "fcmeans": {True: {}}
     }
     for m in results.keys():

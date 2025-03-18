@@ -3,7 +3,7 @@ Classes and functions for describing topics with LLMs.
 """
 
 from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
-from metrics import CaptionEmbeddingSimilarity
+from metrics import DescriptionEmbeddingSimilarity
 from finetuneCLIP import load_model
 from typing import List, Tuple
 from PIL import Image
@@ -21,7 +21,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 BASIC_PROMPT = """
-Given this image containing the most representative artworks from a topic, write a short caption to describe genre, subject, medium and style of the topic.
+Given this image containing the most representative artworks from a topic, write a short caption to describe the topic.
 Avoid general information and focus only on the most relevant aspects of the artworks.
 """
 
@@ -85,9 +85,9 @@ class Descriptor:
             for image_path, prompt_text in zip(image_paths, prompts)
         ]
 
-        metric = CaptionEmbeddingSimilarity()
+        metric = DescriptionEmbeddingSimilarity()
         score = metric(descriptions)
-        print(f"CES: {score:.4f}")
+        print(f"DES: {score:.4f}")
         saving = {"descriptions": descriptions, "score": score}
         # Saving the results
         with open(f"{output_dir}/descr.pkl", "wb") as f:
