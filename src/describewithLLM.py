@@ -26,7 +26,7 @@ Avoid general information and focus only on the most relevant aspects of the art
 """
 
 RICH_PROMPT = """
-Given this image containing the most representative artworks from a topic and the following list of words describing the topic, write a short caption to describe the topic.
+Given this image containing the most representative artworks from a topic and the following list of words describing the topic, write a short caption which briefly describes the topic.
 Avoid general information and focus only on the most relevant aspects of the artworks.\n
 """
 
@@ -90,7 +90,8 @@ class Descriptor:
         print(f"DES: {score:.4f}")
         saving = {"descriptions": descriptions, "score": score}
         # Saving the results
-        with open(f"{output_dir}/descr.pkl", "wb") as f:
+        saving_path = f"{output_dir}/descr_v1.pkl" if topics is None else f"{output_dir}/descr_v2.pkl"
+        with open(saving_path, "wb") as f:
             pickle.dump(saving, f)
         
         return descriptions, score

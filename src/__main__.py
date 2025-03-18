@@ -12,7 +12,7 @@ import pickle
 
 
 NR_TOPICS_RANGE = range(2, 21, 2)
-METRICS = ["TD", "IEPS", "IEC", "DES"]
+METRICS = ["TD", "IEPS", "IEC", "DESv1", "DESv2"]
 
 
 def modeling():
@@ -24,8 +24,10 @@ def modeling():
     }
     for m in results.keys():
         for r in results[m].keys():
+            results[m][r]["dir"] = []
+            results[m][r]["topics"] = []
             results[m][r]["images"] = []
-            for metric in METRICS[:-1]:
+            for metric in METRICS:
                 results[m][r][metric] = []
 
     # 1. running the experiments
@@ -36,10 +38,11 @@ def modeling():
                 experiment_name = f"UMAP+{m.upper()}" if r else f"{m.upper()}"
                 print(f"\n<Running {experiment_name} with {nr_topics} topics>")
 
-                _, _, images_top, scores = model.fit(method=m, reduce=r)
-                results[m][r]["dir"] = model.output_dir
+                topics, _, images_top, scores = model.fit(method=m, reduce=r)
+                results[m][r]["dir"].append(model.output_dir)
+                results[m][r]["topics"].append(topics)
                 results[m][r]["images"].append(images_top)
-                for metric in METRICS[:-1]:
+                for metric in METRICS[:-2]:
                     results[m][r][metric].append(scores[metric])
         
     # 2. saving the results
@@ -55,16 +58,13 @@ def describing():
     descriptor = Descriptor()
     for m in results.keys():
         for r in results[m].keys():
-            for images_top in results[m][r]["images"]:
-                output_dir = results[m][r]["dir"]
-                _, score = descriptor(output_dir, images_top)
-                results[m][r][METRICS[-1]].append(score)
-
-    # 2. saving the results
-    with open("output/results.pkl", "wb") as f:
-        pickle.dump(results, f)
+            for d, t, i in zip(results[m][r]["dir"], results[m][r]["topics"], results[m][r]["images"]):
+                _, score_v1 = descriptor(output_dir=d, image_paths=i)
+                _, score_v2 = descriptor(output_dir=d, image_paths=i, topics=t)
+                results[m][r]["DESv1"].append(score_v1)
+                results[m][r]["DESv2"].append(score_v2)
     
-    # 3. plotting the results
+    # 2. plotting the results
     plot_results(results, NR_TOPICS_RANGE, METRICS)
     plot_summary_table(results, METRICS)
 
@@ -77,7 +77,7 @@ def plot_results(results, nr_topics_range, metrics):
         metrics (list): The metrics to plot.
     """
     sns.set_style("whitegrid")
-    colors = ["crimson", "darkorange", "dodgerblue", "seagreen", "darkviolet"]
+    colors = ["crimson", "darkorange", "dodgerblue", "seagreen"]
     
     for metric in metrics:
         plt.figure(figsize=(10, 6))
