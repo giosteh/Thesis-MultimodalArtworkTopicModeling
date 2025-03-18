@@ -21,7 +21,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 BASIC_PROMPT = """
-Given this image containing the most representative artworks from a topic, write a short caption to describe the topic.
+Given this image containing the most representative artworks from a topic, write a short caption which briefly describes the topic.
 Avoid general information and focus only on the most relevant aspects of the artworks.
 """
 
