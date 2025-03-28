@@ -116,7 +116,7 @@ class TopicModel:
         X_normalized = X_torch / X_torch.norm(dim=-1, keepdim=True)
         self._embeddings = X_normalized.cpu().numpy()
 
-        self._topic_words, self._topic_sentences = pickle.load(open(vocabulary_path, "rb"))
+        self._topic_words, self._topic_prompts = pickle.load(open(vocabulary_path, "rb"))
         self._min_topic_size = min_topic_size
         self._top_n_images = top_n_images
         self._top_n_words = top_n_words
@@ -240,16 +240,16 @@ class TopicModel:
         """
         topics = []
         with torch.no_grad():
-            for words, sentences in zip(self._topic_words, self._topic_sentences):
-                sentences = clip.tokenize([s.lower() for s in sentences]).to(device)
-                sentences = self._encoder.encode_text(sentences)
-                sentences = sentences / sentences.norm(dim=-1, keepdim=True)
+            for words, prompts in zip(self._topic_words, self._topic_prompts):
+                prompts = clip.tokenize([s.lower() for s in prompts]).to(device)
+                prompts = self._encoder.encode_text(prompts)
+                prompts = prompts / prompts.norm(dim=-1, keepdim=True)
 
                 pov = []
                 # Computing the cosine similarity with each cluster center
                 for center in self._centers:
                     center = torch.from_numpy(center).float().to(device)
-                    similarity = center @ sentences.t()
+                    similarity = center @ prompts.t()
                     # Selecting the top n words
                     values, indices = similarity.topk(self._top_n_words)
                     topic = [(words[i], v.item()) for i, v in zip(indices, values)]
