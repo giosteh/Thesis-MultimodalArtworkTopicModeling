@@ -23,7 +23,7 @@ import torch
 import clip
 import os
 
-
+plt.rcParams["font.family"] = "Ubuntu Mono"
 # Warnings handling
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 warnings.filterwarnings("ignore", category=NumbaWarning)
@@ -90,7 +90,7 @@ class TopicModel:
                  pov_names: List[str] = ["Genre", "Subject", "Medium", "Style"],
                  min_topic_size: int = 100,
                  top_n_images: int = 20,
-                 top_n_words: int = 3,
+                 top_n_words: int = 10,
                  nr_topics: int = 10,
                  reduced_dim: int = 5):
         """Initializes the TopicModel.
@@ -102,7 +102,7 @@ class TopicModel:
             pov_names (List[str]): The pov names. Defaults to ["Genre", "Subject", "Medium", "Style"].
             min_topic_size (int): The minimum topic size. Defaults to 20.
             top_n_images (int): The number of top images to use. Defaults to 20.
-            top_n_words (int): The number of top words to use. Defaults to 3.
+            top_n_words (int): The number of top words to use. Defaults to 10.
             nr_topics (int): The number of topics to find. Defaults to 10.
             reduced_dim (int): The dimension to reduce the embeddings to. Defaults to 5.
         """
@@ -250,8 +250,9 @@ class TopicModel:
                 for center in self._centers:
                     center = torch.from_numpy(center).float().to(device)
                     similarity = center @ prompts.t()
-                    # Selecting the top n words
-                    values, indices = similarity.topk(self._top_n_words)
+                    # Selecting the most representative words
+                    top_n = self._top_n_words // len(self._pov_names)
+                    values, indices = similarity.topk(top_n)
                     topic = [(words[i], v.item()) for i, v in zip(indices, values)]
                     pov.append(topic)
                 topics.append(pov)
@@ -322,7 +323,6 @@ class TopicModel:
             topic, image_topic = self._topics[label], self._image_topics[label]
             image_sample = df["image_path"].sample(min(self._top_n_images, len(df)), random_state=0).tolist()
 
-            self._view_single_topic(f"{self.output_dir}/topic{label+1}.png", image_sample, topic)
             self._view_single_topic(f"{self.output_dir}/topic{label+1}T.png", image_topic, topic)
             self._view_single_topic(f"{self.output_dir}/image{label+1}T.png", image_topic)
             self._images_top.append(f"{self.output_dir}/image{label+1}T.png")
@@ -341,7 +341,7 @@ class TopicModel:
         Returns:
             None
         """
-        fig, axes = plt.subplots(4, 5, figsize=(20, 26))
+        fig, axes = plt.subplots(4, 5, figsize=(20, 24))
         axes = axes.flatten()
         for ax, image_path in zip(axes, images):
             ax.imshow(Image.open(image_path).convert("RGB"))
@@ -360,7 +360,7 @@ class TopicModel:
             f"{pov_name.upper()} : " + ", ".join(povs[i])
             for i, pov_name in enumerate(self._pov_names)
         )
-        text_ax.text(0, 1, text_content, fontsize=24, ha="left", va="top",
+        text_ax.text(0, 1, text_content, fontsize=26, ha="left", va="top",
                      bbox=dict(boxstyle="square,pad=1.2", facecolor="#f6f6f6"))
         text_ax.axis("off")
         plt.savefig(path, format="png", dpi=300, bbox_inches="tight")
@@ -386,9 +386,9 @@ class TopicModel:
 
         plt.figure(figsize=(15, 12))
         plt.tight_layout()
-        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1],
-                    c=sampled_labels, cmap="plasma", s=30, marker="o")
-        plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=np.arange(len(self._topics)), cmap="plasma", s=400, marker="x")
+        plt.scatter(sampled_embeddings[:, 0], sampled_embeddings[:, 1], c=sampled_labels,
+                    cmap="viridis", s=30, marker="o", alpha=.75)
+        plt.scatter(centers_2d[:, 0], centers_2d[:, 1], c=np.arange(len(self._topics)), cmap="viridis", s=680, marker="*")
         plt.title("Latent Space in 2D")
         plt.savefig(f"{self.output_dir}/latentspace.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()

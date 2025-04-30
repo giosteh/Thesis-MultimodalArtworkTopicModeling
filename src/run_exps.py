@@ -91,7 +91,7 @@ def plot_results(results, nr_topics_range, metrics):
         plt.xlabel("Number of Topics")
         plt.ylabel(metric)
         plt.legend()
-        plt.title(f"Trend of {metric} over Number of Topics")
+        plt.title(f"Trend of {metric}")
         plt.savefig(f"output/{metric}.png", format="png", dpi=300, bbox_inches="tight")
         plt.close()
 
@@ -119,9 +119,9 @@ def plot_summary_table(results, metrics):
     table = ax.table(cellText=summary_data, colLabels=["Method"] + metrics, cellLoc='center', loc='center')
     table.auto_set_font_size(False)
     table.set_fontsize(14)
+    table.scale(1.2, 1.5)
     table.auto_set_column_width([i for i in range(len(metrics) + 1)])
-    plt.title("Summary of Metrics (Mean ± Std Dev)")
-    plt.savefig("output/summary_table.png", format="png", dpi=300, bbox_inches="tight")
+    plt.savefig("output/summary.png", format="png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
