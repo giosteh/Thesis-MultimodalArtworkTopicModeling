@@ -112,6 +112,7 @@ class Descriptor:
                 f"{pov_name.upper()} : " + ", ".join(povs[i])
                 for i, pov_name in enumerate(self._pov_names)
             )
+            # Attaching the extra content
             prompt_text += extra_content
         return prompt_text
 

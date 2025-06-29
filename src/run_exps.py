@@ -113,7 +113,7 @@ def plot_summary_table(results, metrics):
                 row.append(f"{mean_value:.2f} ± {std_value:.2f}")
             summary_data.append(row)
     
-    fig, ax = plt.subplots(figsize=(10, 6))
+    _, ax = plt.subplots(figsize=(10, 6))
     ax.axis("tight")
     ax.axis("off")
     table = ax.table(cellText=summary_data, colLabels=["Method"] + metrics, cellLoc='center', loc='center')

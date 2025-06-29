@@ -317,11 +317,10 @@ class TopicModel:
             None
         """
         # Iterating over the topics
-        for label, df in self.df.groupby("label"):
+        for label, _ in self.df.groupby("label"):
             if label == -1:
                 continue
             topic, image_topic = self._topics[label], self._image_topics[label]
-            image_sample = df["image_path"].sample(min(self._top_n_images, len(df)), random_state=0).tolist()
 
             self._view_single_topic(f"{self.output_dir}/topic{label+1}T.png", image_topic, topic)
             self._view_single_topic(f"{self.output_dir}/image{label+1}T.png", image_topic)
